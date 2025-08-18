@@ -1,0 +1,86 @@
+{"0": {
+    "doc": "Deployment runtime for FastAPI",
+    "title": "Deployment runtime for FastAPI",
+    "content": " ",
+    "url": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html",
+    
+    "relUrl": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html"
+  },"1": {
+    "doc": "Deployment runtime for FastAPI",
+    "title": "Context and Problem Statement",
+    "content": " ",
+    "url": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#context-and-problem-statement",
+    
+    "relUrl": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#context-and-problem-statement"
+  },"2": {
+    "doc": "Deployment runtime for FastAPI",
+    "title": "Considered Options",
+    "content": " ",
+    "url": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#considered-options",
+    
+    "relUrl": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#considered-options"
+  },"3": {
+    "doc": "Deployment runtime for FastAPI",
+    "title": "Decision Outcome",
+    "content": " ",
+    "url": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#decision-outcome",
+    
+    "relUrl": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#decision-outcome"
+  },"4": {
+    "doc": "Deployment runtime for FastAPI",
+    "title": "Considered Options",
+    "content": " ",
+    "url": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#considered-options-1",
+    
+    "relUrl": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#considered-options-1"
+  },"5": {
+    "doc": "Deployment runtime for FastAPI",
+    "title": "Decision Outcome",
+    "content": "Consequences . Confirmation . ",
+    "url": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#decision-outcome-1",
+    
+    "relUrl": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#decision-outcome-1"
+  },"6": {
+    "doc": "Deployment runtime for FastAPI",
+    "title": "Pros and Cons of the Options",
+    "content": "{title of option 1} . {title of other option} . ",
+    "url": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#pros-and-cons-of-the-options",
+    
+    "relUrl": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#pros-and-cons-of-the-options"
+  },"7": {
+    "doc": "Deployment runtime for FastAPI",
+    "title": "More Information",
+    "content": " ",
+    "url": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#more-information",
+    
+    "relUrl": "/decisions/platform-engineering/0000-where-to-deploy-rest-api.html#more-information"
+  },"8": {
+    "doc": "Architecture Decisions",
+    "title": "Architecture Decisions",
+    "content": "Below, all decision records for Sasya Chikitsa are listed. ",
+    "url": "/architecture-decision.html",
+    
+    "relUrl": "/architecture-decision.html"
+  },"9": {
+    "doc": "About Sasya Chikitsa",
+    "title": "About Sasya Chikitsa",
+    "content": " ",
+    "url": "/#about-sasya-chikitsa",
+    
+    "relUrl": "/#about-sasya-chikitsa"
+  },"10": {
+    "doc": "About Sasya Chikitsa",
+    "title": "About Sasya Chikitsa",
+    "content": " ",
+    "url": "/",
+    
+    "relUrl": "/"
+  },"11": {
+    "doc": "Platform Engineering",
+    "title": "Platform Engineering",
+    "content": "Below, all decision records for MADR are listed. ",
+    "url": "/decisions/platform-engineering/",
+    
+    "relUrl": "/decisions/platform-engineering/"
+  }
+}

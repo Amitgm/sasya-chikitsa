@@ -1,0 +1,9 @@
+---
+parent: Architecture Decisions
+has_children: true
+nav_order: 100
+title: Metrics
+---
+# Metrics
+
+Below, all decision records for MADR are listed.

@@ -1,0 +1,37 @@
+# Blank Sample
+
+```text
+---
+parent: <give a parent title name>
+nav_order: 100
+title: <give a name>
+status: "proposed"
+date: 2025-08-18
+---
+
+# <title>
+
+## Context and Problem Statement
+
+
+## Considered Options
+
+
+## Decision Outcome
+
+## Considered Options
+
+## Decision Outcome
+
+### Consequences
+
+### Confirmation
+
+## Pros and Cons of the Options
+
+### {title of option 1}
+
+### {title of other option}
+
+## More Information
+```
