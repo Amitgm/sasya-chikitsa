@@ -1,19 +1,20 @@
----
-# Configuration for the Jekyll template "Just the Docs"
-parent: Architecture Decisions
-nav_order: 100
-title: ADR Template
 
-# These are optional elements. Feel free to remove any of them.
-# status: "{proposed | rejected | accepted | deprecated | … | superseded by ADR-0123"
+# Typical structure of the ADR
+
+```markdown
+---
+# parent: Decisions
+# nav_order: 100
+# title: Sample Title
+# These are optional metadata elements. Feel free to remove any of them.
+# status: "{proposed | rejected | accepted | deprecated | … | superseded by ADR-0123}"
 # date: {YYYY-MM-DD when the decision was last updated}
 # decision-makers: {list everyone involved in the decision}
 # consulted: {list everyone whose opinions are sought (typically subject-matter experts); and with whom there is a two-way communication}
 # informed: {list everyone who is kept up-to-date on progress; and with whom there is a one-way communication}
 ---
-<!-- we need to disable MD025, because we use the different heading "ADR Template" in the homepage (see above) than it is foreseen in the template -->
-<!-- markdownlint-disable-next-line MD025 -->
-# {short title, representative of solved problem and found solution}
+
+# Sample Title
 
 ## Context and Problem Statement
 
@@ -47,7 +48,7 @@ Chosen option: "{title of option 1}", because {justification. e.g., only option,
 <!-- This is an optional element. Feel free to remove. -->
 ### Confirmation
 
-{Describe how the implementation of/compliance with the ADR can/will be confirmed. Is the chosen design and its implementation in line with the decision? E.g., a design/code review or a test with a library such as ArchUnit can help validate this. Note that although we classify this element as optional, it is included in many ADRs.}
+{Describe how the implementation / compliance of the ADR can/will be confirmed. Is there any automated or manual fitness function? If so, list it and explain how it is applied. Is the chosen design and its implementation in line with the decision? E.g., a design/code review or a test with a library such as ArchUnit can help validate this. Note that although we classify this element as optional, it is included in many ADRs.}
 
 <!-- This is an optional element. Feel free to remove. -->
 ## Pros and Cons of the Options
@@ -78,3 +79,4 @@ Chosen option: "{title of option 1}", because {justification. e.g., only option,
 ## More Information
 
 {You might want to provide additional evidence/confidence for the decision outcome here and/or document the team agreement on the decision and/or define when/how this decision the decision should be realized and if/when it should be re-visited. Links to other decisions and resources might appear here as well.}
+```

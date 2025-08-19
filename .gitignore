@@ -210,3 +210,9 @@ __marimo__/
 
 # mac specific
 .DS_Store
+
+# java and gradle
+.gradle/
+
+# IntelliJ IDEA
+.idea/

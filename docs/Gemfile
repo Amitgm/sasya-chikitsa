@@ -1,11 +1,5 @@
 source 'https://rubygems.org'
 
-gem 'csv'
-
-gem 'logger'
-
-gem 'base64'
-
 gem "jekyll", "~> 4.3.3"
 
 gem "just-the-docs", "0.8.2"
@@ -13,3 +7,8 @@ gem "just-the-docs", "0.8.2"
 gem 'jekyll-titles-from-headings'
 
 gem 'jekyll-relative-links'
+
+gem "csv"
+
+gem "base64"
+
