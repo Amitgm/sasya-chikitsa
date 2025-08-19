@@ -2,7 +2,7 @@
 An AI driven application to help farmers and plant enthusiasts identify plant diseases and get useful recommendations.
 
 
-## Instructions and Pre-requisites for Buliding the App
+## Instructions and Pre-requisites for Building the App
 Step 1 : Install Android Studio from developer.android.com.
 Launch Android Studio → Create New Project → Empty Activity.
 Choose:
@@ -33,24 +33,38 @@ Step 5: Run on Emulator (Click Run Button on Top ) -- It will take 5-6 min to co
 ## Instruction for running MADR on local
 
 ```bash
-sasya-chikitsa on  main [✘?] via  v8.13 via  v17.0.16 via  via  v3.13.6 via  v2.6.10
+❯ cd docs
 ❯ chruby ruby-3.4.1
-sasya-chikitsa on  main [✘?] via  v8.13 via  v17.0.16 via  via  v3.13.6 via  v3.4.1
 ❯ ruby -v
-
 ruby 3.4.1 (2024-12-25 revision 48d4efcb85) +PRISM [arm64-darwin24]
-sasya-chikitsa on  main [✘?] via  v8.13 via  v17.0.16 via  via  v3.13.6 via  v3.4.1
-❯ clear
-if [ /Users/rajranja/Documents/software/roxctl/roxctl ]; then
-sasya-chikitsa on  main [✘?] via  v8.13 via  v17.0.16 via  via  v3.13.6 via  v3.4.1
-❯ vim ~/.zshrc
-sasya-chikitsa on  main [✘?] via  v8.13 via  v17.0.16 via  via  v3.13.6 via  v3.4.1 took 24s
-❯ ruby -v
 
-ruby 3.4.1 (2024-12-25 revision 48d4efcb85) +PRISM [arm64-darwin24]
-sasya-chikitsa on  main [✘?] via  v8.13 via  v17.0.16 via  via  v3.13.6 via  v3.4.1
 ❯ gem install bundler jekyll
 Successfully installed bundler-2.7.1
 Successfully installed jekyll-4.4.1
 2 gems installed
+
+❯ bundle install
+Bundle complete! 6 Gemfile dependencies, 39 gems now installed.
+Use `bundle info [gemname]` to see where a bundled gem is installed.
+
+❯ bundle exec jekyll serve
+Run in verbose mode to see all warnings.
+                    done in 0.223 seconds.
+ Auto-regeneration: enabled for '/Users/rajranja/Documents/github/cds-9-group-6/sasya-chikitsa/docs'
+    Server address: http://127.0.0.1:4000/
+  Server running... press ctrl-c to stop.
+
+```
+
+## Instructions for running the server and testing
+
+### Starting the API server
+```bash
+python3 /<your-path>/sasya-chikitsa/server/LeafClassifer.py 
+```
+
+```bash
+curl -X POST -H "Content-Type: application/json" \
+     -d "{\"image_b64\": \"$(base64 -i /<your-path>/sasya-chikitsa/resources/images_for_test/leaf_with_spotting.jpg | tr -d '\n')\"}" \
+     http://localhost:8080/predict-leaf-classification
 ```
