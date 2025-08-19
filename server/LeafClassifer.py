@@ -7,8 +7,6 @@ import asyncio
 
 from ml.cnn_with_attention_classifier import CNNWithAttentionClassifier
 
-# Example label classes—replace with your own
-label_classes = ["class1", "class2", "class3"]
 
 class LeafClassifierAPI:
     def __init__(self):
@@ -17,7 +15,6 @@ class LeafClassifierAPI:
         self.add_routes()
 
     def add_routes(self):
-        api = self
 
         class PredictRequest(BaseModel):
             image_b64: str
@@ -45,4 +42,5 @@ app = classifier_api.app  # Expose FastAPI app for uvicorn
 
 if __name__ == "__main__":
     import uvicorn
+    # TODO replace with real host name and port
     uvicorn.run(app, host="127.0.0.1", port=8080)
