@@ -2,7 +2,7 @@
 An AI driven application to help farmers and plant enthusiasts identify plant diseases and get useful recommendations.
 
 
-## Instructions and Pre-requisites for Buliding the App
+## Instructions and Pre-requisites for Building the App
 Step 1 : Install Android Studio from developer.android.com.
 Launch Android Studio → Create New Project → Empty Activity.
 Choose:
@@ -29,3 +29,15 @@ Step 4 : Update MainActivity.kt file with my code in app/src/main/java folder
 
 Step 5: Run on Emulator (Click Run Button on Top ) -- It will take 5-6 min to connect and Run the Emulator
 
+## Instructions for running the server and testing
+
+### Starting the API server
+```bash
+python3 /<your-path>/sasya-chikitsa/server/LeafClassifer.py 
+```
+
+```bash
+curl -X POST -H "Content-Type: application/json" \
+     -d "{\"image_b64\": \"$(base64 -i /<your-path>/sasya-chikitsa/resources/images_for_test/leaf_with_spotting.jpg | tr -d '\n')\"}" \
+     http://localhost:8080/predict-leaf-classification
+```
