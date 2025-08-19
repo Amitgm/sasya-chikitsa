@@ -216,3 +216,7 @@ __marimo__/
 
 # IntelliJ IDEA
 .idea/
+
+# vscode
+.vscode
+

@@ -1,0 +1,14 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "asyncio>=4.0.0",
+    "fastapi>=0.116.1",
+    "python-multipart>=0.0.20",
+    "typing-extensions>=4.14.1",
+    "typing-inspection>=0.4.1",
+    "uvicorn>=0.35.0",
+]
