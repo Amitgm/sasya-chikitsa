@@ -1,6 +1,10 @@
 
 # Typical structure of the ADR
 
+## Reference 
+
+https://adr.github.io/madr/
+
 ```markdown
 ---
 # parent: Decisions
