@@ -12,7 +12,7 @@ metadata:
   namespace: sasya-chikitsa
 spec:
   progressDeadlineSeconds: 600
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: engine
