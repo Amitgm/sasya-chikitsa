@@ -58,9 +58,20 @@ class LeafClassifierAPI:
 
             return StreamingResponse(streamer(), media_type=media_type, headers=extra_headers)
 
+# Create instances at the module level
+classifier_api = LeafClassifierAPI()
+app = classifier_api.app  # Expose FastAPI app for uvicorn to find
+
 if __name__ == "__main__":
-    # Main entrypoint
-    classifier_api = LeafClassifierAPI()
-    app = classifier_api.app  # Expose FastAPI app for uvicorn
-    # TODO replace with real host name and port
-    uvicorn.run(app, host="127.0.0.1", port=8080)
+    # Keep the host as 0.0.0.0 for containerized environments
+    uvicorn.run("server:app", host="0.0.0.0", port=8080, reload=True)
+    # Note: Running this way is often not recommended for development
+    # because of how Python handles paths. Sticking to the command
+    # line 'uvicorn' call from the root is best.
+
+# if __name__ == "__main__":
+#     # Main entrypoint
+#     classifier_api = LeafClassifierAPI()
+#     app = classifier_api.app  # Expose FastAPI app for uvicorn
+#     # Keep the host as 0.0.0.0 as it allows access from any IP binding; ideal for containerized environments
+#     uvicorn.run(app, host="0.0.0.0", port=8080)
