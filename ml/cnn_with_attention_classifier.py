@@ -16,7 +16,7 @@ LABEL_CLASSES = [
     'Tomato_Yellow_Leaf_Curl_Virus', 'Tomato_mosaic_virus', 'Unknown', 'healthy'
 ]
 
-TARGET_SIZE = (64, 64)
+TARGET_IMG_SIZE = (64, 64)
 
 # Define the custom layer needed for loading the model
 class ReshapeLayer(Layer):
@@ -73,6 +73,7 @@ class CNNWithAttentionClassifier(Layer):
             image_decoded = base64.b64decode(image_bytes)
             nparr = np.frombuffer(image_decoded, np.uint8)
             image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
         except Exception as e:
             yield f"Error: Could not decode base64 image ({str(e)})\n"
             return
@@ -80,8 +81,12 @@ class CNNWithAttentionClassifier(Layer):
             yield "Error: Could not load image from bytes.\n"
             return
 
-        image_resized = cv2.resize(image, TARGET_SIZE)
-        yield "Resized image, normalizing and preprocessing...\n"
+        image_resized = cv2.resize(image, TARGET_IMG_SIZE)
+        yield f"Resized image, normalizing and preprocessing...\n"
+
+        image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        is_success, img_buffer = cv2.imencode(".png", image_gray)
+        yield img_buffer.tobytes()
 
         image_preprocessed = image_resized.astype(np.float32) / 255.0
         image_for_prediction = np.expand_dims(image_preprocessed, axis=0)
@@ -91,8 +96,6 @@ class CNNWithAttentionClassifier(Layer):
 
         predicted_class_index = np.argmax(prediction)
         predicted_class_label = LABEL_CLASSES[predicted_class_index]
-        yield f"Predicted class label...{predicted_class_label}\n"
-
         prediction_probability = prediction[0][predicted_class_index]
         yield f"Prediction made. Class: {predicted_class_label}, Probability: {prediction_probability}\n"
         return
