@@ -60,7 +60,7 @@ Run in verbose mode to see all warnings.
 
 ### Starting the API server
 ```bash
-python3 /<your-path>/sasya-chikitsa/server/LeafClassifer.py 
+python3 /<your-path>/sasya-chikitsa/server/api/server.py 
 ```
 
 ```bash

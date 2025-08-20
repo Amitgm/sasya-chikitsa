@@ -1,43 +1,66 @@
-from fastapi import FastAPI, UploadFile, File, Form
+import uvicorn
+from fastapi import FastAPI, Request, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from typing import Optional
 import asyncio
-import uvicorn
+import json
 
-app = FastAPI()
+from ml.cnn_with_attention_classifier import CNNWithAttentionClassifier
 
-# Example streaming function - replace with your ML code as needed
-async def predict_leaf_classification(image_bytes, text=None):
-    for step in range(1, 4):
-        await asyncio.sleep(1)  # Simulate processing time
-        yield f"Step {step}: Intermediate output\n"
-    yield "Prediction: Banana leaf detected\n"
+class LeafClassifierAPI:
 
-# Streaming generator for FastAPI
-async def stream_prediction(image: UploadFile, text: Optional[str]):
-    image_bytes = await image.read()  # Read image file
-    async for intermediate in predict_leaf_classification(image_bytes, text):
-        yield intermediate.encode("utf-8")
+    def __init__(self):
+        self.app = FastAPI()
+        self.model = CNNWithAttentionClassifier()
+        self.add_routes()
 
-@app.post("/predict-leaf-classification")
-async def predict(
-    image: UploadFile = File(..., description="Image file (binary)"),
-    text: Optional[str] = Form(None, description="Optional text info")
-):
-    return StreamingResponse(
-        stream_prediction(image, text),
-        media_type="text/plain"
-    )
+    def add_routes(self):
 
-async def hello_generator():
-    while True:
-        yield b"Hello World\n"
-        await asyncio.sleep(2)
+        class PredictRequest(BaseModel):
+            image_b64: str
+            text: Optional[str] = ""
 
-@app.get("/hello")
-async def hello():
-    return StreamingResponse(hello_generator(), media_type="text/plain")
+        @self.app.post("/predict-leaf-classification")
+        async def predict(body: PredictRequest, request: Request, format: Optional[str] = Query(None)):
+            # Determine streaming format via explicit query param or Accept header
+            accept_header = (format or request.headers.get("accept", "")).lower()
+
+            if "text/event-stream" in accept_header or (format and format.lower() == "sse"):
+                media_type = "text/event-stream"
+                def transform(chunk: str) -> str:
+                    return f"data: {chunk}\n\n"
+                extra_headers = {
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                }
+            elif (
+                "application/x-ndjson" in accept_header
+                or "application/jsonl" in accept_header
+                or (format and format.lower() in {"ndjson", "jsonl"})
+                or "application/json" in accept_header  # fall back to json-lines for generic json
+            ):
+                media_type = "application/x-ndjson"
+                def transform(chunk: str) -> str:
+                    return json.dumps({"data": chunk}) + "\n"
+                extra_headers = {}
+            else:
+                media_type = "text/plain"
+                def transform(chunk: str) -> str:
+                    return chunk if chunk.endswith("\n") else chunk + "\n"
+                extra_headers = {}
+
+            async def streamer():
+                for out in self.model.predict_leaf_classification(body.image_b64, body.text):
+                    yield transform(str(out)).encode("utf-8")
+                    await asyncio.sleep(2)
+
+            return StreamingResponse(streamer(), media_type=media_type, headers=extra_headers)
 
 if __name__ == "__main__":
-    # Start the FastAPI server at localhost:8080
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    # Main entrypoint
+    classifier_api = LeafClassifierAPI()
+    app = classifier_api.app  # Expose FastAPI app for uvicorn
+    # TODO replace with real host name and port
+    uvicorn.run(app, host="127.0.0.1", port=8080)
