@@ -16,5 +16,8 @@ spec:
     repoURL: 'https://github.com/cds-9-group-6/sasya-chikitsa.git'
     targetRevision: HEAD
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
