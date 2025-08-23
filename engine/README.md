@@ -1,6 +1,10 @@
 # Notes
 
-Commands to run the python file
+![Sasya Chikitsa Data Flow Diagram](./images/Sasya Chiktsa Data Flow.drawio.png)
+
+*Data flow architecture showing how the plant disease detection system processes images and provides AI-powered analysis*
+
+## Commands to run the python file
 
 ```bash
 # initialize the folder with uv
