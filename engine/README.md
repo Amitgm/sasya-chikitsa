@@ -1,6 +1,6 @@
 # Notes
 
-![Sasya Chikitsa Data Flow Diagram](./images/Sasya Chiktsa Data Flow.drawio.png)
+![Sasya Chikitsa Data Flow Diagram](./images/sasya-chikitsa-data-flow.png)
 
 *Data flow architecture showing how the plant disease detection system processes images and provides AI-powered analysis*
 
