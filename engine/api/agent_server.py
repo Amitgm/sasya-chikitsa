@@ -137,6 +137,7 @@ class AgentServer:
             sid = cfg.get("configurable", {}).get("session_id", "default") if isinstance(cfg, dict) else "default"
             return self._get_session_history(sid)
 
+        self.get_history = get_history  # Save as instance method!
         return RunnableWithMessageHistory(
             executor,
             get_history,
@@ -166,6 +167,7 @@ class AgentServer:
             result = await asyncio.to_thread(_invoke)
             # Summarize final output for the user
             final_text = result.get("output") if isinstance(result, dict) else str(result)
+
             def _summ():
                 prompt = (
                     "Summarize the following leaf classification results concisely for the end user. "
@@ -247,11 +249,28 @@ class AgentServer:
                     result = await asyncio.to_thread(_invoke)
                     # Summarize final output
                     final_text = result.get("output") if isinstance(result, dict) else str(result)
+
+                    def _get_classification_history(self, session_id: str) -> str:
+                        history = self.get_history({"configurable": {"session_id": session_id}})
+                        results = []
+                        for msg in getattr(history, 'messages', []):
+                            if getattr(msg, "type", None) == "ai":
+                                text = getattr(msg, "content", "") if hasattr(msg, "content") else str(msg)
+                                results.append(text)
+                        return "\n".join(results)
+
                     def _summ():
+                        session_id = req.session_id or "default"
+                        classification_history = _get_classification_history(self, session_id)
                         prompt = (
-                            "Summarize the following leaf classification results concisely for the end user. "
-                            "Ask relevant follow up question."
-                            "Respond with plain text only.\n\n" + str(final_text)
+                                "You are a plant expert assistant. Use all previous plant leaf classification results in this session (provided below) "
+                                "to answer the user's latest question. If an image is present, respond to the classification result as before. "
+                                "If the image is not present, use the classification history (shown as 'Previous Results') to answer. "
+                                "Always follow up with a relevant question.\n\n"
+                                "Previous Results:\n" +
+                                str(classification_history) + "\n"
+                                                         "Latest:\n" +
+                                str(final_text)
                         )
                         out = self.llm.invoke(prompt)
                         try:
