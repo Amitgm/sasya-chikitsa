@@ -86,7 +86,7 @@ class CNNWithAttentionClassifier(Layer):
 
         image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         is_success, img_buffer = cv2.imencode(".png", image_gray)
-        yield img_buffer.tobytes()
+        # yield img_buffer.tobytes()
 
         image_preprocessed = image_resized.astype(np.float32) / 255.0
         image_for_prediction = np.expand_dims(image_preprocessed, axis=0)

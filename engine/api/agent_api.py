@@ -17,15 +17,27 @@ class AgentAPI:
     def _add_routes(self):
         @self.app.post("/chat")
         async def chat(req: ChatRequest):
+            print(f"DEBUG: Chat request received - message: '{req.message}', has_image: {bool(req.image_b64)}, session_id: {req.session_id}")
+            print(f"DEBUG: Current image store status: {self.agent_core.get_image_store_status()}")
+            
             system_context = ""
             if req.image_b64:
                 handle = str(uuid.uuid4())
                 self.agent_core.image_store[handle] = req.image_b64
                 system_context = f"image_handle={handle}"
+                print(f"DEBUG: Image uploaded with handle: {handle}")
+            else:
+                print("DEBUG: No image in request")
 
             inputs = {"input": req.message, "system_context": system_context}
+            print(f"DEBUG: Invoking agent with inputs: {inputs}")
+            
+            # Show conversation history for debugging
+            session_id = req.session_id or "default"
+            conv_debug = self.agent_core.get_conversation_debug_info(session_id)
+            print(f"DEBUG: Conversation state for session {session_id}: {conv_debug}")
 
-            result = await self.agent_core.invoke_agent(inputs, req.session_id or "default")
+            result = await self.agent_core.invoke_agent(inputs, session_id)
             final_text = result.get("output") if isinstance(result, dict) else str(result)
             summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
             return {"reply": summary}
@@ -73,8 +85,17 @@ class AgentAPI:
                 handle = str(uuid.uuid4())
                 self.agent_core.image_store[handle] = req.image_b64
                 system_context = f"image_handle={handle}"
+                print(f"DEBUG: Streaming chat - Image uploaded with handle: {handle}")
+            else:
+                print("DEBUG: Streaming chat - No image in request")
 
             inputs = {"input": req.message, "system_context": system_context}
+            print(f"DEBUG: Streaming chat - Invoking agent with inputs: {inputs}")
+            
+            # Show conversation history for debugging
+            session_id = req.session_id or "default"
+            conv_debug = self.agent_core.get_conversation_debug_info(session_id)
+            print(f"DEBUG: Streaming chat - Conversation state for session {session_id}: {conv_debug}")
 
             async def run_agent():
                 token = self.agent_core._emit_ctx.set(emit)
