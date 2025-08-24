@@ -21,7 +21,7 @@ Open AVD Manager (Device Manager) → Create an Emulator.
  7.Finish → Now you can run the emulator.
 
 
-Step 2 : Update AndroidManifest.xml file with my code in app/src/main/java folder
+Step 2 : Update AndroidManifest.xml file with my code in app/src/main folder
 
 Step 3 : Update activity_main.xml file with my code in app/src/main/res folder( This file should be in res/layout. If u don't find layout directory then create the Android Resource Directory and Rename it to layout and then create Android Resource File and rename it to activity_main.xml) 
 
