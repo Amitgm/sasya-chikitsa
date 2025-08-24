@@ -827,7 +827,7 @@
         </UserObject>
         <mxCell id="riPpfyM_VziyR66aMAtz-126" value="&lt;div&gt;&lt;p style=&quot;text-align:left;margin-left:0;margin-right:0;margin-top:0px;margin-bottom:0px;text-indent:0;vertical-align:middle;direction:ltr;&quot;&gt;&lt;font style=&quot;font-family: Arial; color: rgb(51, 51, 51); direction: ltr; letter-spacing: 0px; line-height: 120%; opacity: 1;&quot;&gt;&lt;b&gt;Relay outputs to Controller&lt;/b&gt;&lt;/font&gt;&lt;/p&gt;&lt;/div&gt;" style="text;vsdxID=84;edgeStyle=none;dashed=1;startArrow=none;endArrow=block;startSize=5;endSize=5;strokeColor=none;spacingTop=-3;spacingBottom=-3;spacingLeft=-3;spacingRight=-3;verticalAlign=middle;html=1;labelBackgroundColor=none;rounded=1;align=left;overflow=width;fillColor=none;gradientColor=none;whiteSpace=wrap;;html=1;fontSize=14;strokeWidth=2;" vertex="1" parent="riPpfyM_VziyR66aMAtz-125">
           <mxGeometry width="146.91" height="13.66" relative="1" as="geometry">
-            <mxPoint x="-74.455" y="50.17" as="offset" />
+            <mxPoint x="-76" y="41" as="offset" />
           </mxGeometry>
         </mxCell>
         <UserObject label="" tags="Background" id="riPpfyM_VziyR66aMAtz-127">
