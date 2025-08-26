@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request, Query
 from fastapi.responses import StreamingResponse
 from typing import Optional
 
-from engine.api.agent_core import AgentCore, ChatRequest
+from api.agent_core import AgentCore, ChatRequest
 
 class AgentAPI:
     def __init__(self, agent_core: AgentCore):
@@ -136,7 +136,12 @@ class AgentAPI:
             return StreamingResponse(streamer(), media_type=media_type, headers=extra_headers)
 
 
+agent_core_instance = AgentCore()
+api_server = AgentAPI(agent_core_instance)
+app = api_server.app
+
 if __name__ == "__main__":
-    agent_core_instance = AgentCore()
-    api_server = AgentAPI(agent_core_instance)
-    uvicorn.run(api_server.app, host="127.0.0.1", port=8080)
+    # agent_core_instance = AgentCore()
+    # api_server = AgentAPI(agent_core_instance)
+    # uvicorn.run(api_server.app, host="127.0.0.1", port=8080)
+    uvicorn.run("agent_api:app", host="0.0.0.0", port=8080, reload=True)

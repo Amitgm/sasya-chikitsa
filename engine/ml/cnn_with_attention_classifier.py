@@ -6,7 +6,8 @@ from tensorflow.keras.models import load_model
 from keras.layers import Layer
 import tensorflow as tf
 
-from engine.ml.label_mappings import LABEL_MAPPINGS
+# from engine.ml.label_mappings import LABEL_MAPPINGS
+from ml.label_mappings import LABEL_MAPPINGS
 
 MODEL_LABEL_CLASSES = [
     'Apple_scab', 'Bacterial_spot', 'Black_rot', 'Cedar_apple_rust',

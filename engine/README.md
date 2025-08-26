@@ -19,7 +19,24 @@ uv fastapi typing asyncio uvicorn python-multipart
 source .venv/bin/activate
 
 # run the code
-.venv/bin/python /Users/rajranja/Documents/github/cds-9-group-6/sasya-chikitsa/server/api/server.py
+# .venv/bin/python /Users/rajranja/Documents/github/cds-9-group-6/sasya-chikitsa/server/api/server.py
+# python -m api.agent_api
+
+cd sasya-chikitsa/engine
+uvicorn api.agent_api:app --reload
+
+jq -n \
+--arg msg "Please analyze this Apple leaf image" \
+--arg sid "session-1" \
+--arg img "$(cat resources/images_for_test/leaf_base64.txt)" \
+--arg txt "Spots near edges" \
+'{message:$msg, session_id:$sid, image_b64:$img, text:$txt}' \
+| curl -sS -X POST http://127.0.0.1:8000/chat-stream \
+-H "Content-Type: application/json" \
+--data-binary @-
+
+
+
 
 
 uv pip compile pyproject.toml -o requirements.txt
