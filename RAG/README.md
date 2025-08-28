@@ -1,4 +1,4 @@
-# Retrieval-Augmented Generation (RAG) Project  
+# Retrieval-Augmented Generation (RAG)
 
 This repository contains notebooks for creating embeddings, building a vector database, and running RAG (Retrieval-Augmented Generation) using both **Groq API** and **Hugging Face**.  
 
