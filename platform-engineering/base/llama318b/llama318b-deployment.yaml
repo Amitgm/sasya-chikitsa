@@ -30,15 +30,35 @@ spec:
               protocol: TCP
           resources:
             requests:
-              memory: "20Gi"
-              cpu: "6"
+              memory: "10Gi"
+              cpu: "2"
             limits:
-              memory: "24Gi"
-              cpu: "8"
+              memory: "12Gi"
+              cpu: "4"
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
           env:
             - name: OLLAMA_ROOT
+              value: /ollama-data
+            - name: OLLAMA_HOST
+              value: 0.0.0.0:11434
+            - name: HOME
               value: /ollama-data
           volumeMounts:
             - name: ollama-data-volume
@@ -50,5 +70,4 @@ spec:
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler
-      securityContext: {}
       terminationGracePeriodSeconds: 30
