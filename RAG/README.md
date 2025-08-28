@@ -1,29 +1,40 @@
-Project Notebooks
+# Retrieval-Augmented Generation (RAG) Project  
 
-This repository contains three Jupyter notebooks that demonstrate data preprocessing, embedding creation, and Retrieval-Augmented Generation (RAG) using Groq API and Hugging Face models.
+This repository contains notebooks for creating embeddings, building a vector database, and running RAG (Retrieval-Augmented Generation) using both **Groq API** and **Hugging Face**.  
 
-📂 Files Overview
-1. Embedding_creation.ipynb
+---
 
-Handles preprocessing of cleaned data.
+## 📂 Files in this Repository  
 
-Creates embeddings and inserts chunks into the Chroma vector database for later retrieval.
+### 1. `Embedding_creation.ipynb`  
+- Handles preprocessing of cleaned data.  
+- Creates embeddings.  
+- Inserts chunks into the vector database for retrieval.  
 
-2. Rag_with_groq.ipynb
+---
 
-Runs RAG using the Groq API.
+### 2. `Rag_with_groq.ipynb`  
+- Runs the RAG pipeline using the **Groq API**.  
+- Requires a **Groq API key**:  
+  - You can create one by signing up at [Groq](https://groq.com).  
+  - An existing API key is already placed in the **Amit** folder of the shared drive inside the `.env` file.  
+- Requires the **`chroma_capstone_db_new`** vector database.  
+- ✅ To run this notebook:  
+  1. Place the `.env` file in the same folder.  
+  2. Ensure the vector database is available.  
+  3. Execute the notebook cells.  
 
-Requirements:
+---
 
-A Groq API key, which can be created by registering at groq.com
-.
+### 3. `Rag_huggingface.ipynb`  
+- Similar to `Rag_with_groq.ipynb`.  
+- Does **not** require a Groq API key.  
+- Simply run the notebook to start the RAG pipeline.  
 
-However, a pre-generated API key is already stored in the Amit folder of the shared drive inside the .env file.
+---
 
-The notebook also requires access to the chroma_capstone_db_new vector database.
-
-✅ To run:
-
-Place the .env file and chroma_capstone_db_new vector database in the same folder as the notebook.
-
-Execute the notebook cells sequentially.
+## ⚙️ Requirements  
+- Python 3.9+  
+- Install dependencies:  
+  ```bash
+  pip install -r requirements.txt
