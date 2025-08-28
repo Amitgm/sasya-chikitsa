@@ -36,7 +36,13 @@ spec:
         ports:
         - containerPort: 8080
           protocol: TCP
-        resources: {}
+        resources:
+          requests:
+              memory: "16Gi"
+              cpu: "4"
+          limits:
+              memory: "20Gi"
+              cpu: "6"
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
       dnsPolicy: ClusterFirst
