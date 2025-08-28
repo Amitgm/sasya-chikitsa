@@ -1,23 +1,29 @@
-The following folder contains 3 files
+Project Notebooks
 
-1) Embedding_creation.ipynb
-2) Rag_with_groq.ipynb
-3) Rag_huggingface.ipynb
+This repository contains three Jupyter notebooks that demonstrate data preprocessing, embedding creation, and Retrieval-Augmented Generation (RAG) using Groq API and Hugging Face models.
 
-Embedding_Creation.ipynb: 
-contains code for further data preprocessing of cleaned data, ready to be inserted  and chunk insertion into the vector db
+📂 Files Overview
+1. Embedding_creation.ipynb
 
-Rag_with_groq.ipynb:
+Handles preprocessing of cleaned data.
 
-Runs the RAG using the Groq API. The Groq API key needs to be created by visiting groq.com and creating an account for the Groq API key. However, an already created  API key is already placed in the Amit folder of the shared drive in the .env file. The file also requires the chroma_capstone_db_new vector database to fetch relevant results from the queries from the database. 
+Creates embeddings and inserts chunks into the Chroma vector database for later retrieval.
 
-Using the .env file and vector database, run the Rag_with_groq notebook in the same folder. 
+2. Rag_with_groq.ipynb
 
-Rag_huggingface.ipynb:
+Runs RAG using the Groq API.
 
-Similar to Rag_with_groq.ipynb, this does not require a grok api key. Just simply run this file
+Requirements:
 
+A Groq API key, which can be created by registering at groq.com
+.
 
+However, a pre-generated API key is already stored in the Amit folder of the shared drive inside the .env file.
 
+The notebook also requires access to the chroma_capstone_db_new vector database.
 
+✅ To run:
 
+Place the .env file and chroma_capstone_db_new vector database in the same folder as the notebook.
+
+Execute the notebook cells sequentially.
