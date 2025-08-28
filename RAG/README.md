@@ -34,7 +34,7 @@ This repository contains notebooks for creating embeddings, building a vector da
 ---
 
 ## ⚙️ Requirements  
-- Python 3.9+  
+- Python 3.10+  
 - Install dependencies:  
   ```bash
   pip install -r requirements.txt
