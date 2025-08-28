@@ -30,7 +30,7 @@ spec:
         deployment: engine
     spec:
       containers:
-      - image: quay.io/rajivranjan/engine:latest
+      - image: quay.io/rajivranjan/engine:v2
         imagePullPolicy: Always
         name: engine
         ports:
