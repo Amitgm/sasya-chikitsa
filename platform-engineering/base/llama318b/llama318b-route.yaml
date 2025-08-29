@@ -9,9 +9,9 @@ spec:
   # host: engine-sasya-chikitsa.apps.cluster-mx6z7.mx6z7.sandbox5315.opentlc.com
   port:
     targetPort: 11434-tcp
-  tls:
-    insecureEdgeTerminationPolicy: Redirect
-    termination: edge
+  # tls:
+  #   insecureEdgeTerminationPolicy: Redirect
+  #   termination: edge
   to:
     kind: Service
     name: llama318b
