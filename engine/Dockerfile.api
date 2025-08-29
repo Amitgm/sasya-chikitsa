@@ -35,5 +35,4 @@ EXPOSE 8080
 # Stage 6: Define the command to run your application
 # This runs uvicorn, making the server accessible from outside the container.
 # We remove '--reload' as it's not needed for production.
-CMD ["uvicorn", "api.agent_server:app", "--host", "0.0.0.0", "--port", "8080"]
-
+CMD ["uvicorn", "api.agent_api:app", "--host", "0.0.0.0", "--port", "8080"]

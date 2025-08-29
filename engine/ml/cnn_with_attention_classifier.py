@@ -6,7 +6,10 @@ from tensorflow.keras.models import load_model
 from keras.layers import Layer
 import tensorflow as tf
 
-LABEL_CLASSES = [
+# from engine.ml.label_mappings import LABEL_MAPPINGS
+from ml.label_mappings import LABEL_MAPPINGS
+
+MODEL_LABEL_CLASSES = [
     'Apple_scab', 'Bacterial_spot', 'Black_rot', 'Cedar_apple_rust',
     'Cercospora_leaf_spot Gray_leaf_spot', 'Common_rust', 'Early_blight',
     'Esca_(Black_Measles)', 'Haunglongbing_(Citrus_greening)', 'Late_blight',
@@ -95,7 +98,9 @@ class CNNWithAttentionClassifier(Layer):
         yield f"Making prediction...{prediction}\n"
 
         predicted_class_index = np.argmax(prediction)
-        predicted_class_label = LABEL_CLASSES[predicted_class_index]
+        predicted_class_label = MODEL_LABEL_CLASSES[predicted_class_index]
         prediction_probability = prediction[0][predicted_class_index]
-        yield f"Prediction made. Class: {predicted_class_label}, Probability: {prediction_probability}\n"
+        # Transform it to Kisan CC label
+        kissan_cc_class_label = LABEL_MAPPINGS[predicted_class_label]
+        yield f"Prediction made. Original Class: {predicted_class_label}, Kisan CC Class: {kissan_cc_class_label}, Probability: {prediction_probability}\n"
         return

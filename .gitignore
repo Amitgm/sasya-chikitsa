@@ -220,8 +220,5 @@ __marimo__/
 # vscode
 .vscode
 
-# LLM Models
-local_models
-
 
 backup

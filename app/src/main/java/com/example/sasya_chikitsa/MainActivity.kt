@@ -1,10 +1,12 @@
 package com.example.sasya_chikitsa
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.ImageButton
 import android.widget.Toast
 import android.content.Intent
 import android.net.Uri
@@ -22,53 +24,47 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.example.sasya_chikitsa.ui.theme.Sasya_ChikitsaTheme
 
 class MainActivity : ComponentActivity() {
-    private lateinit var imageView: ImageView
-    private lateinit var promptInput: EditText
-    private var imageUri: Uri? = null
+    private lateinit var imagePreview: ImageView
+    private lateinit var uploadBtn: Button
+    private lateinit var sendBtn: ImageButton
+    private lateinit var messageInput: EditText
 
-    private val PICK_IMAGE = 100   // request code for gallery intent
 
+
+    private val PICK_IMAGE_REQUEST = 1
+
+    @SuppressLint("MissingInflatedId")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // ✅ Connects this Activity to res/layout/activity_main.xml
         setContentView(R.layout.activity_main)
 
-        // Link UI elements
-        imageView = findViewById(R.id.imageView)
-        promptInput = findViewById(R.id.promptInput)
-        val selectImageBtn: Button = findViewById(R.id.selectImageBtn)
-        val submitBtn: Button = findViewById(R.id.submitBtn)
+        imagePreview = findViewById(R.id.imagePreview)
+        uploadBtn = findViewById(R.id.uploadBtn)
+        sendBtn = findViewById(R.id.sendBtn)
+        messageInput = findViewById(R.id.messageInput)
 
-        // ✅ Handle Select Image button
-        selectImageBtn.setOnClickListener {
-            openGallery()
+        // Upload Button
+        uploadBtn.setOnClickListener {
+            val intent = Intent(Intent.ACTION_GET_CONTENT)
+            intent.type = "image/*"
+            startActivityForResult(intent, PICK_IMAGE_REQUEST)
         }
 
-        // ✅ Handle Submit button
-        submitBtn.setOnClickListener {
-            val prompt = promptInput.text.toString()
-            if (imageUri != null && prompt.isNotEmpty()) {
-                Toast.makeText(this, "Image + Prompt ready!", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Please select image & enter prompt.", Toast.LENGTH_SHORT).show()
+        // Send Button
+        sendBtn.setOnClickListener {
+            val message = messageInput.text.toString()
+            if (message.isNotEmpty()) {
+                // TODO: handle sending message
+                messageInput.text.clear()
             }
         }
     }
 
-    // Open gallery to pick image
-    private fun openGallery() {
-        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-        startActivityForResult(intent, PICK_IMAGE)
-    }
-
-    // Handle result from gallery
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-
-        if (requestCode == PICK_IMAGE && resultCode == Activity.RESULT_OK) {
-            imageUri = data?.data
-            imageView.setImageURI(imageUri)  // ✅ show selected image
+        if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK) {
+            val imageUri: Uri? = data?.data
+            imagePreview.setImageURI(imageUri)
         }
     }
 }
