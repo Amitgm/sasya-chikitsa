@@ -1,11 +1,14 @@
 import os
 import asyncio
+import logging
 from typing import Optional, Dict, Callable
 from contextvars import ContextVar
 from dotenv import load_dotenv
 
-
 from pydantic import BaseModel
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -19,7 +22,7 @@ from ml.cnn_with_attention_classifier import CNNWithAttentionClassifier
 try:
     from langchain_openai import ChatOpenAI  # type: ignore
 except Exception:
-    print("Exception for ChatOpenAI")  # pragma: no cover
+    logger.warning("Exception for ChatOpenAI")  # pragma: no cover
     ChatOpenAI = None  # type: ignore
 
 # Prefer modern package, fall back to legacy community import
@@ -53,8 +56,8 @@ def create_llm():
         return ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), temperature=0.2)
     if ChatOllama is not None and (ollama_host or os.path.exists("/usr/local/bin/ollama")):
         if ollama_host:
-            return ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"), temperature=0.2, base_url=ollama_host)
-        return ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"), temperature=0.2)
+            return ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"), temperature=0.1, base_url=ollama_host)
+        return ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"), temperature=0.1)
     raise RuntimeError(
         "No chat model configured. Set OPENAI_API_KEY (and optionally OPENAI_MODEL) or run Ollama and set OLLAMA_MODEL."
     )
@@ -70,7 +73,7 @@ class AgentCore:
         self._emit_ctx: ContextVar[Optional[Callable[[str], None]]] = ContextVar("emit_ctx", default=None)
         self._image_emitters: Dict[str, Callable[[str], None]] = {}
         self.llm = create_llm() # Initialize LLM here
-        print(f"DEBUG: AgentCore initialized with agent_with_history: {self.agent_with_history}")
+        logger.debug(f"AgentCore initialized with agent_with_history: {self.agent_with_history}")
 
     def get_image_store_status(self):
         """Get current status of image store for debugging."""
@@ -91,7 +94,7 @@ class AgentCore:
 
     def get_conversation_debug_info(self, session_id: str) -> Dict:
         """Get detailed debug information about a conversation session."""
-        history = self._get_session_history(session_id)
+        history = self.get_session_history(session_id)
         messages = getattr(history, 'messages', [])
         
         debug_info = {
@@ -117,7 +120,7 @@ class AgentCore:
 
     def get_conversation_summary(self, session_id: str) -> str:
         """Get a human-readable summary of the conversation for the agent."""
-        history = self._get_session_history(session_id)
+        history = self.get_session_history(session_id)
         messages = getattr(history, 'messages', [])
         
         if not messages:
@@ -156,7 +159,7 @@ class AgentCore:
 
     def get_available_results_summary(self, session_id: str) -> str:
         """Get a summary of what classification results are available in the conversation history."""
-        history = self._get_session_history(session_id)
+        history = self.get_session_history(session_id)
         messages = getattr(history, 'messages', [])
         
         if not messages:
@@ -186,7 +189,7 @@ class AgentCore:
     def get_conversation_state_summary(self, session_id: str, system_context: str) -> str:
         """Get a comprehensive summary of the current conversation state for the agent."""
         has_image = "image_handle=" in system_context
-        history = self._get_session_history(session_id)
+        history = self.get_session_history(session_id)
         messages = getattr(history, 'messages', [])
         
         summary = "=== CONVERSATION STATE SUMMARY ===\n"
@@ -209,7 +212,7 @@ class AgentCore:
         summary += "=== END SUMMARY ===\n"
         return summary
 
-    def _get_session_history(self, session_id: str) -> ChatMessageHistory:
+    def get_session_history(self, session_id: str) -> ChatMessageHistory:
         if session_id not in self.session_store:
             self.session_store[session_id] = ChatMessageHistory()
         return self.session_store[session_id]
@@ -218,29 +221,29 @@ class AgentCore:
         @tool("classify_leaf", return_direct=True)
         def classify_leaf(image_handle: str, text: Optional[str] = None) -> str:
             """CRITICAL: ONLY use this tool when system_context contains 'image_handle='. If system_context is empty or missing 'image_handle=', DO NOT call this tool. Classify a plant leaf image using the provided image_handle from system context."""
-            print(f"DEBUG: classify_leaf tool called with image_handle: '{image_handle}', text: '{text}'")
-            print(f"DEBUG: Current image_store keys: {list(self.image_store.keys())}")
+            logger.debug(f"classify_leaf tool called with image_handle: '{image_handle}', text: '{text}'")
+            logger.debug(f"Current image_store keys: {list(self.image_store.keys())}")
             
             # CRITICAL SAFETY CHECK: This tool should NEVER be called without a valid image
             # If we reach this point, it means the LLM ignored our instructions
             # We need to check if there's actually an image available
             if not self.image_store:
-                print("DEBUG: CRITICAL ERROR - Tool called but image_store is empty!")
+                logger.error("CRITICAL ERROR - Tool called but image_store is empty!")
                 return "ERROR: This tool should not have been called. No images are available in the system. Please ask the user to upload an image first."
             
             # Additional safety check - ensure image_handle is not empty or None
             if not image_handle or image_handle.strip() == "":
-                print("DEBUG: Empty or None image_handle provided")
+                logger.error("Empty or None image_handle provided")
                 return "ERROR: No image handle provided. This tool should not have been called without a valid image handle."
             
             # Check if the provided handle actually exists in our store
             if image_handle not in self.image_store:
-                print(f"DEBUG: CRITICAL ERROR - Tool called with invalid handle '{image_handle}' that doesn't exist in image_store")
-                print(f"DEBUG: Available handles: {list(self.image_store.keys())}")
+                logger.error(f"CRITICAL ERROR - Tool called with invalid handle '{image_handle}' that doesn't exist in image_store")
+                logger.error(f"Available handles: {list(self.image_store.keys())}")
                 return f"ERROR: Invalid image handle '{image_handle}'. This tool should not have been called. Available handles: {list(self.image_store.keys())}"
             
             image_b64 = self.image_store[image_handle]
-            print(f"DEBUG: Image found, proceeding with classification")
+            logger.debug(f"Image found, proceeding with classification")
             emitter = self._image_emitters.get(image_handle) or self._emit_ctx.get()
             outputs = []
             for chunk in self.model.predict_leaf_classification(image_b64, text or ""):
@@ -257,7 +260,7 @@ class AgentCore:
         @tool("classify_leaf_safe", return_direct=True)
         def classify_leaf_safe(image_handle: str, text: Optional[str] = None) -> str:
             """SAFE VERSION: This tool will only work when there are actual images available. If no images are available, it will return an error message."""
-            print(f"DEBUG: classify_leaf_safe tool called with image_handle: '{image_handle}', text: '{text}'")
+            logger.debug(f"classify_leaf_safe tool called with image_handle: '{image_handle}', text: '{text}'")
             
             # Check if there are any images available at all
             if not self.image_store:
@@ -312,7 +315,7 @@ class AgentCore:
         def get_history(cfg):
             sid = cfg.get("configurable", {}).get("session_id", "default") \
                 if isinstance(cfg, dict) else cfg if isinstance(cfg, str) else "default"
-            return self._get_session_history(sid)
+            return self.get_session_history(sid)
 
         self.get_history = get_history
         return RunnableWithMessageHistory(
@@ -334,8 +337,7 @@ class AgentCore:
             return "No previous classification results available."
         
         # Format the history to be more readable and informative
-        formatted_results = []
-        formatted_results.append("=== PREVIOUS CLASSIFICATION RESULTS ===")
+        formatted_results = ["=== PREVIOUS CLASSIFICATION RESULTS ==="]
         for i, result in enumerate(results, 1):
             # Extract key information from the result
             if "healthy" in result.lower():
@@ -353,34 +355,32 @@ class AgentCore:
         system_context = inputs.get("system_context", "")
         has_image = "image_handle=" in system_context
         
-        print(f"DEBUG: invoke_agent called with system_context: '{system_context}'")
-        print(f"DEBUG: has_image: {has_image}")
-        print(f"DEBUG: inputs: {inputs}")
+        logger.debug(f"invoke_agent called with system_context: '{system_context}'")
+        logger.debug(f"has_image: {has_image}")
+        logger.debug(f"inputs: {inputs}")
         
         # Add tool guidance to help the agent understand what's available
         tool_guidance = self.get_tool_availability_guidance(system_context)
         inputs["tool_guidance"] = tool_guidance
-        print(f"DEBUG: Tool guidance: {tool_guidance}")
+        logger.debug(f"Tool guidance: {tool_guidance}")
         
         # Add conversation state summary to help the agent understand the current situation
         conversation_summary = self.get_conversation_state_summary(session_id, system_context)
         inputs["conversation_summary"] = conversation_summary
-        print(f"DEBUG: Conversation state summary: {conversation_summary}")
+        logger.debug(f"Conversation state summary: {conversation_summary}")
         
         # Add available results summary to help the agent understand what's in conversation history
         results_summary = self.get_available_results_summary(session_id)
         inputs["available_results"] = results_summary
-        print(f"DEBUG: Available results summary: {results_summary}")
+        logger.debug(f"Available results summary: {results_summary}")
         
         # Always use the same agent to preserve conversation history
         # The system prompt and tool availability will handle preventing inappropriate tool calls
-        print("DEBUG: Using agent with conversation history preserved")
-        return await asyncio.to_thread(self.agent_with_history.invoke,
-                                       inputs,
-                                       config={
-                                           "callbacks": callbacks,
-                                           "configurable": {"session_id": session_id}
-                                       })
+        logger.debug("Using agent with conversation history preserved")
+        return await asyncio.to_thread(self.agent_with_history.invoke, inputs, config={
+            "callbacks": callbacks,
+            "configurable": {"session_id": session_id}
+        })
 
     async def summarize_response(self, final_text: str, session_id: str):
         classification_history = self._get_classification_history(session_id)
