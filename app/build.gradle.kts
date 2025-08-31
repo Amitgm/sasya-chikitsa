@@ -59,4 +59,12 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    // For JSON processing
+    implementation("com.squareup.retrofit2:retrofit:2.9.0") // Or the latest version
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0") // Or converter-moshi
+    // For handling streaming responses, especially Server-Sent Events (SSE)
+    // You might need a library that specifically handles SSE or handle it manually.
+    // OkHttp (which Retrofit uses under the hood) can handle raw responses.
+    implementation("com.squareup.okhttp3:okhttp:4.10.0") // Or the latest version
+    implementation("com.squareup.okhttp3:logging-interceptor:4.10.0") // For debugging
 }
