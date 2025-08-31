@@ -31,3 +31,4 @@ FROM ollama/ollama:latest
 # Copy the pre-downloaded models from the build context
 # into the expected directory inside the container.
 COPY ./local_models /root/.ollama/models
+
