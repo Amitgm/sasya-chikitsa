@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 
 import uvicorn
@@ -7,6 +8,13 @@ from fastapi.responses import StreamingResponse
 from typing import Optional
 
 from api.agent_core import AgentCore, ChatRequest
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 class AgentAPI:
     def __init__(self, agent_core: AgentCore):
@@ -17,30 +25,87 @@ class AgentAPI:
     def _add_routes(self):
         @self.app.post("/chat")
         async def chat(req: ChatRequest):
-            print(f"DEBUG: Chat request received - message: '{req.message}', has_image: {bool(req.image_b64)}, session_id: {req.session_id}")
-            print(f"DEBUG: Current image store status: {self.agent_core.get_image_store_status()}")
+            logger.debug(f"Chat request received - message: '{req.message}', has_image: {bool(req.image_b64)}, session_id: {req.session_id}")
+            logger.debug(f"Current image store status: {self.agent_core.get_image_store_status()}")
             
             system_context = ""
             if req.image_b64:
                 handle = str(uuid.uuid4())
                 self.agent_core.image_store[handle] = req.image_b64
                 system_context = f"image_handle={handle}"
-                print(f"DEBUG: Image uploaded with handle: {handle}")
+                logger.debug(f"Image uploaded with handle: {handle}")
             else:
-                print("DEBUG: No image in request")
+                logger.debug("No image in request")
 
             inputs = {"input": req.message, "system_context": system_context}
-            print(f"DEBUG: Invoking agent with inputs: {inputs}")
+            logger.debug(f"Invoking agent with inputs: {inputs}")
             
             # Show conversation history for debugging
             session_id = req.session_id or "default"
             conv_debug = self.agent_core.get_conversation_debug_info(session_id)
-            print(f"DEBUG: Conversation state for session {session_id}: {conv_debug}")
+            logger.debug(f"Conversation state for session {session_id}: {conv_debug}")
 
             result = await self.agent_core.invoke_agent(inputs, session_id)
             final_text = result.get("output") if isinstance(result, dict) else str(result)
             summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
             return {"reply": summary}
+
+        @self.app.get("/session-history")
+        async def get_default_session_history():
+            """Get the current session history for the default session."""
+            return await get_session_history_by_id("default")
+
+        @self.app.get("/session-history/{session_id}")
+        async def get_session_history_by_id(session_id: str):
+            """Get the current session history for a given session ID."""
+            logger.debug(f"Session history request for session_id: {session_id}")
+            
+            try:
+                # Get session history from agent core
+                history = self.agent_core.get_session_history(session_id)
+                messages = getattr(history, 'messages', [])
+                
+                # Format messages for response
+                formatted_messages = []
+                for i, msg in enumerate(messages):
+                    msg_type = getattr(msg, "type", "unknown")
+                    content = getattr(msg, "content", str(msg))
+                    timestamp = getattr(msg, "timestamp", None)
+                    
+                    formatted_messages.append({
+                        "index": i,
+                        "type": msg_type,
+                        "content": content,
+                        "timestamp": timestamp,
+                        "role": "assistant" if msg_type == "ai" else "user" if msg_type == "human" else msg_type
+                    })
+                
+                # Get debug info for additional context
+                # debug_info = self.agent_core.get_conversation_debug_info(session_id)
+                
+                response_data = {
+                    "session_id": session_id,
+                    "total_messages": len(messages),
+                    "messages": formatted_messages,
+                    # "debug_info": debug_info,
+                    "summary": {
+                        "ai_messages": len([m for m in messages if getattr(m, "type", None) == "ai"]),
+                        "human_messages": len([m for m in messages if getattr(m, "type", None) == "human"]),
+                        "other_messages": len([m for m in messages if getattr(m, "type", None) not in ["ai", "human"]])
+                    }
+                }
+                
+                logger.debug(f"Returning session history with {len(messages)} messages")
+                return response_data
+                
+            except Exception as e:
+                logger.error(f"Failed to get session history for {session_id}: {str(e)}")
+                return {
+                    "error": f"Failed to retrieve session history: {str(e)}",
+                    "session_id": session_id,
+                    "total_messages": 0,
+                    "messages": []
+                }
 
         @self.app.post("/chat-stream")
         async def chat_stream(req: ChatRequest, request: Request, format: Optional[str] = Query(None)):
@@ -77,7 +142,8 @@ class AgentAPI:
 
             class QueueCallbackHandler(BaseCallbackHandler):
                 def on_llm_new_token(self, token: str, **kwargs) -> None:
-                    emit(token)
+                    # emit(token)
+                    return
 
             system_context = ""
             handle: Optional[str] = None
@@ -85,17 +151,17 @@ class AgentAPI:
                 handle = str(uuid.uuid4())
                 self.agent_core.image_store[handle] = req.image_b64
                 system_context = f"image_handle={handle}"
-                print(f"DEBUG: Streaming chat - Image uploaded with handle: {handle}")
+                logger.debug(f"Streaming chat - Image uploaded with handle: {handle}")
             else:
-                print("DEBUG: Streaming chat - No image in request")
+                logger.debug("Streaming chat - No image in request")
 
             inputs = {"input": req.message, "system_context": system_context}
-            print(f"DEBUG: Streaming chat - Invoking agent with inputs: {inputs}")
+            logger.debug(f"Streaming chat - Invoking agent with inputs: {inputs}")
             
             # Show conversation history for debugging
             session_id = req.session_id or "default"
             conv_debug = self.agent_core.get_conversation_debug_info(session_id)
-            print(f"DEBUG: Streaming chat - Conversation state for session {session_id}: {conv_debug}")
+            logger.debug(f"Streaming chat - Conversation state for session {session_id}: {conv_debug}")
 
             async def run_agent():
                 token = self.agent_core._emit_ctx.set(emit)
@@ -108,6 +174,7 @@ class AgentAPI:
                         callbacks=[QueueCallbackHandler()]
                     )
                     final_text = result.get("output") if isinstance(result, dict) else str(result)
+                    emit("Summarizing response...")
                     summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
                     emit(summary)
                 finally:

@@ -55,16 +55,3 @@ Run in verbose mode to see all warnings.
   Server running... press ctrl-c to stop.
 
 ```
-
-## Instructions for running the server and testing
-
-### Starting the API server
-```bash
-python3 /<your-path>/sasya-chikitsa/server/api/server.py 
-```
-
-```bash
-curl -X POST -H "Content-Type: application/json" \
-     -d "{\"image_b64\": \"$(base64 -i /<your-path>/sasya-chikitsa/resources/images_for_test/leaf_with_spotting.jpg | tr -d '\n')\"}" \
-     http://localhost:8080/predict-leaf-classification
-```
