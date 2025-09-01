@@ -223,3 +223,7 @@ __marimo__/
 local_models
 
 backup
+
+# adding mlflow generated artifacts related to model.
+
+mlartifacts
