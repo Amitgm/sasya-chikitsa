@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain> <!-- Standard Android Emulator localhost -->
+        <domain includeSubdomains="true">localhost</domain>   <!-- For local development if using a hostname -->
+        <!-- Add any other specific local IP or hostname you use for development -->
+        <!-- <domain includeSubdomains="true">your.local.dev.server.ip</domain> -->
+    </domain-config>
+
+    <!-- You can also opt-out of cleartext for all other domains (recommended) -->
+    <!-- This base-config applies to all connections not covered by a specific domain-config -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
