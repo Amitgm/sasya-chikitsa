@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request, Query
 from fastapi.responses import StreamingResponse
 from typing import Optional
 
-from api.agent_core import AgentCore, ChatRequest
+from engine.api.agent_core import AgentCore, ChatRequest
 
 # Configure logging
 logging.basicConfig(
@@ -21,6 +21,23 @@ class AgentAPI:
         self.app = FastAPI()
         self.agent_core = agent_core
         self._add_routes()
+
+    def _should_summarize_response(self, system_context: str, response_text: str) -> bool:
+        """
+        Determine if the response should be summarized based on whether actual classification occurred.
+        Returns True only if:
+        1. An image was provided (system_context contains 'image_handle=')
+        2. Classification was successful (response doesn't start with 'ERROR:')
+        """
+        has_image = "image_handle=" in system_context
+        is_successful_classification = (
+            has_image and 
+            not response_text.startswith("ERROR:") and 
+            len(response_text.strip()) > 0
+        )
+        
+        logger.debug(f"Classification check - has_image: {has_image}, response_length: {len(response_text)}, starts_with_error: {response_text.startswith('ERROR:')}")
+        return is_successful_classification
 
     def _add_routes(self):
         @self.app.post("/chat")
@@ -47,8 +64,16 @@ class AgentAPI:
 
             result = await self.agent_core.invoke_agent(inputs, session_id)
             final_text = result.get("output") if isinstance(result, dict) else str(result)
-            summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
-            return {"reply": summary}
+            
+            # Only call summarize_response if actual leaf classification occurred
+            should_summarize = self._should_summarize_response(system_context, final_text)
+            logger.debug(f"Should summarize response: {should_summarize}")
+            
+            if should_summarize:
+                summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
+                return {"reply": summary}
+            else:
+                return {"reply": final_text}
 
         @self.app.get("/session-history")
         async def get_default_session_history():
@@ -174,9 +199,17 @@ class AgentAPI:
                         callbacks=[QueueCallbackHandler()]
                     )
                     final_text = result.get("output") if isinstance(result, dict) else str(result)
-                    emit("Summarizing response...")
-                    summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
-                    emit(summary)
+                    
+                    # Only call summarize_response if actual leaf classification occurred
+                    should_summarize = self._should_summarize_response(system_context, final_text)
+                    logger.debug(f"Streaming - Should summarize response: {should_summarize}")
+                    
+                    if should_summarize:
+                        emit("Summarizing response...")
+                        summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
+                        emit(summary)
+                    else:
+                        emit(final_text)
                 finally:
                     self.agent_core._emit_ctx.reset(token)
                     if handle and handle in self.agent_core._image_emitters:
