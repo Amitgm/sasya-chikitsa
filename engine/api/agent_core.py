@@ -290,23 +290,46 @@ class AgentCore:
             "You can reference previous diagnoses, answer follow-up questions about past results, and provide general plant care advice based on the conversation history. "
             "CRITICAL: When no new image is provided (system_context is empty), you MUST use the conversation history to answer questions. Do NOT try to call any tools. "
             "EXAMPLE: If someone asks 'What did we find about my plant?' and there's no new image, look at the conversation history for previous results and say something like 'Based on our previous analysis, we found...' "
-            "\n\nRESPONSE FORMAT REQUIREMENT: "
-            "When providing responses, you MUST structure your output in the following format: "
-            "MAIN_ANSWER: <your main response content here> "
-            "ACTION_ITEMS: <actionable items the user can request> "
-            "This separation is MANDATORY. Put your primary answer/diagnosis/information in MAIN_ANSWER section, and specific actionable items in ACTION_ITEMS section. "
-            "ACTION_ITEMS should be specific, actionable requests like 'Send me a prescription for this disease', 'Give me watering schedule', 'Show fertilization procedure', 'Provide treatment steps', 'Explain prevention methods', etc. "
-            "Make each action item a complete, tappable request that users can immediately act upon. Separate multiple action items with ' | '. "
-            "BOTH sections are required in every response."
+            "\n\n🚨 CRITICAL RESPONSE FORMAT REQUIREMENT: "
+            "EVERY SINGLE RESPONSE MUST BE STRUCTURED AS FOLLOWS - NO EXCEPTIONS: "
+            "\n\nMAIN_ANSWER: <your complete response content here>"
+            "\nACTION_ITEMS: <specific actionable requests separated by |>"
+            "\n\nEXAMPLE:"
+            "\nMAIN_ANSWER: Based on our previous analysis, your plant requires regular watering and fertilization to thrive. For a personalized schedule, I need to know your plant type, local climate, and current care routine."
+            "\nACTION_ITEMS: Tell me your plant type | Describe your local climate | Share current watering schedule | Get soil test recommendations"
+            "\n\nRULES:"
+            "• MAIN_ANSWER contains your complete diagnosis/response/information"
+            "• ACTION_ITEMS contains specific, tappable requests users can make"
+            "• Both sections are MANDATORY in EVERY response"
+            "• Never respond without this exact format"
+            "• ACTION_ITEMS should be actionable like 'Send me prescription', 'Give watering schedule', 'Show treatment steps'"
+            "• Separate multiple action items with ' | '"
+            "• This format is REQUIRED even for follow-up questions, general advice, or clarifications"
+        )
+
+        format_enforcement = (
+            "\n\n" + "="*80 + "\n"
+            "🚨🚨🚨 ABSOLUTE MANDATORY RESPONSE FORMAT 🚨🚨🚨\n"
+            "="*80 + "\n"
+            "EVERY RESPONSE MUST START WITH EXACTLY:\n\n"
+            "MAIN_ANSWER: [your complete response here]\n"
+            "ACTION_ITEMS: [specific actions separated by |]\n\n"
+            "NO EXCEPTIONS! NO PLAIN TEXT RESPONSES!\n"
+            "WRONG: 'I cannot call the classify_leaf_safe tool...'\n"
+            "CORRECT: 'MAIN_ANSWER: I cannot call the classify_leaf_safe tool without a valid image. Please share an image for plant analysis.\nACTION_ITEMS: Upload plant image | Ask general plant question | Get care tips'\n"
+            "="*80 + "\n"
         )
 
         prompt = ChatPromptTemplate.from_messages([
-            ("system", system + "\n\nSystem context: {system_context}\n\nIMPORTANT: Check the system_context above before deciding to use any tools. If system_context is empty or does not contain 'image_handle=', you have NO tools available and must respond conversationally. Use the conversation history to provide context-aware responses. The conversation history below contains all previous interactions and results - use it to answer questions when no new image is provided."),
+            ("system", system),
+            ("system", "System context: {system_context}\n\nIMPORTANT: Check the system_context above before deciding to use any tools. If system_context is empty or does not contain 'image_handle=', you have NO tools available and must respond conversationally. Use the conversation history to provide context-aware responses. The conversation history below contains all previous interactions and results - use it to answer questions when no new image is provided."),
+            ("system", format_enforcement + "REMINDER: Use MAIN_ANSWER: and ACTION_ITEMS: format for EVERY response!"),
             ("system", "CONVERSATION STATE: {conversation_summary}"),
             ("system", "TOOL GUIDANCE: {tool_guidance}"),
             ("system", "AVAILABLE RESULTS: {available_results}"),
             MessagesPlaceholder(variable_name="chat_history"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
+            ("system", format_enforcement + "FINAL REMINDER: Your response MUST start with 'MAIN_ANSWER:' followed by 'ACTION_ITEMS:'"),
             ("human", "{input}"),
         ])
 
@@ -410,14 +433,20 @@ class AgentCore:
             if action_items_match:
                 action_items = action_items_match.group(1).strip()
             
-            # Fallback: if no structured format found, treat entire response as main answer
+            # Fallback: if no structured format found, create one with intelligent action items
             if not main_answer and not action_items:
                 main_answer = response_text.strip()
-                logger.warning("No structured format found in response, treating entire response as main answer")
+                action_items = self._generate_fallback_action_items(main_answer)
+                logger.warning(f"No structured format found, created fallback format with action items: {action_items}")
+            elif main_answer and not action_items:
+                # Main answer found but no action items, generate fallback action items
+                action_items = self._generate_fallback_action_items(main_answer)
+                logger.warning(f"Found main answer but no action items, generated fallback: {action_items}")
             
         except Exception as e:
             logger.error(f"Error parsing structured response: {e}")
             main_answer = response_text.strip()
+            action_items = self._generate_fallback_action_items(main_answer)
         
         result = {
             "main_answer": main_answer,
@@ -427,25 +456,92 @@ class AgentCore:
         logger.debug(f"Parsed response - Main: '{main_answer[:100]}...', Action Items: '{action_items[:100]}...'")
         return result
 
+    def _generate_fallback_action_items(self, main_answer: str) -> str:
+        """Generate appropriate action items based on the main answer content."""
+        action_items = []
+        
+        # Convert to lowercase for keyword matching
+        content_lower = main_answer.lower()
+        
+        # Based on content, suggest relevant action items
+        if any(keyword in content_lower for keyword in ['watering', 'water', 'irrigation']):
+            action_items.append("Give me watering schedule")
+        
+        if any(keyword in content_lower for keyword in ['fertiliz', 'nutrien', 'feed']):
+            action_items.append("Show fertilization procedure")
+        
+        if any(keyword in content_lower for keyword in ['disease', 'infection', 'fungal', 'bacterial', 'pest']):
+            action_items.append("Send me prescription for this disease")
+            action_items.append("Show treatment steps")
+        
+        if any(keyword in content_lower for keyword in ['care', 'maintain', 'schedule']):
+            action_items.append("Create plant care schedule")
+        
+        if any(keyword in content_lower for keyword in ['prevent', 'avoid']):
+            action_items.append("Explain prevention methods")
+        
+        if any(keyword in content_lower for keyword in ['soil', 'potting', 'repot']):
+            action_items.append("Get soil recommendations")
+        
+        if any(keyword in content_lower for keyword in ['information', 'need', 'tell me', 'describe']):
+            action_items.append("Provide more details")
+            action_items.append("Ask specific question")
+        
+        # Always include these general options if no specific matches
+        if not action_items:
+            action_items = ["Ask follow-up question", "Get more plant care tips", "Upload new plant image"]
+        else:
+            # Add general backup options
+            action_items.append("Ask follow-up question")
+            action_items.append("Upload new plant image")
+        
+        return " | ".join(action_items)
+    
+    def force_structure_response(self, response_text: str) -> str:
+        """Force any response into the required MAIN_ANSWER/ACTION_ITEMS structure."""
+        # Check if response already has proper structure
+        if "MAIN_ANSWER:" in response_text and "ACTION_ITEMS:" in response_text:
+            return response_text
+        
+        logger.warning(f"Forcing structure on unstructured response: {response_text[:100]}...")
+        
+        # Extract the original response content
+        main_content = response_text.strip()
+        
+        # Generate appropriate action items based on content
+        action_items = self._generate_fallback_action_items(main_content)
+        
+        # Force the structured format
+        structured_response = f"MAIN_ANSWER: {main_content}\nACTION_ITEMS: {action_items}"
+        
+        logger.info(f"Forced structure result: {structured_response[:200]}...")
+        return structured_response
+
     async def summarize_response(self, final_text: str, session_id: str):
         classification_history = self._get_classification_history(session_id)
         prompt = (
                 "You are a plant expert assistant. Use all previous plant leaf classification results in this session (provided below) "
                 "to answer the user's latest question. If an image is present, respond to the classification result as before. "
                 "If the image is not present, use the classification history (shown as 'Previous Results') to answer. "
-                "Always follow up with a relevant question.\n\n"
-                "RESPONSE FORMAT REQUIREMENT: "
-                "You MUST structure your output in the following format: "
-                "MAIN_ANSWER: <your main response content here> "
-                "ACTION_ITEMS: <actionable items the user can request> "
-                "This separation is MANDATORY. Put your primary answer/diagnosis/information in MAIN_ANSWER section, and specific actionable items in ACTION_ITEMS section. "
-                "ACTION_ITEMS should be specific, actionable requests like 'Send me a prescription for this disease', 'Give me watering schedule', 'Show fertilization procedure', 'Provide treatment steps', 'Explain prevention methods', etc. "
-                "Make each action item a complete, tappable request that users can immediately act upon. Separate multiple action items with ' | '. "
-                "BOTH sections are required in your response.\n\n"
-                "Previous Results:\n" +
+                "Always follow up with relevant action items.\n\n"
+                + "="*80 + "\n"
+                + "🚨🚨🚨 ABSOLUTE MANDATORY RESPONSE FORMAT 🚨🚨🚨\n"
+                + "="*80 + "\n"
+                + "YOUR RESPONSE MUST START WITH EXACTLY THESE WORDS:\n\n"
+                + "MAIN_ANSWER: [complete response here]\n"
+                + "ACTION_ITEMS: [actions separated by |]\n\n"
+                + "EXAMPLE CORRECT RESPONSE:\n"
+                + "MAIN_ANSWER: Based on our previous analysis, your plant requires regular watering and fertilization to thrive. For a personalized schedule, I need to know your plant type, local climate, and current care routine.\n"
+                + "ACTION_ITEMS: Tell me your plant type | Describe your local climate | Share current watering schedule | Get soil test recommendations\n\n"
+                + "NEVER START WITH PLAIN TEXT! ALWAYS START WITH 'MAIN_ANSWER:'\n"
+                + "="*80 + "\n\n"
+                + "Previous Results:\n" +
                 str(classification_history) + "\n"
                                              "Latest:\n" +
-                str(final_text)
+                str(final_text) + "\n\n"
+                + "="*80 + "\n"
+                + "REMEMBER: Start your response with 'MAIN_ANSWER:' followed by 'ACTION_ITEMS:'"
+                + "\n" + "="*80
         )
         out = await asyncio.to_thread(self.llm.invoke, prompt)
         try:

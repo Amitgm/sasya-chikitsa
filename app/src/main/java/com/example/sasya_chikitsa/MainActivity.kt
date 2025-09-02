@@ -47,6 +47,7 @@ import com.example.sasya_chikitsa.ui.theme.Sasya_ChikitsaTheme
 import org.json.JSONObject
 import org.json.JSONArray
 import org.json.JSONException
+import android.text.SpannableStringBuilder
 
 class MainActivity : ComponentActivity() {
     private lateinit var imagePreview: ImageView
@@ -61,7 +62,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var conversationScrollView: ScrollView // ScrollView for conversation
 
     private var selectedImageUri: Uri? = null
-    private var conversationHistory = StringBuilder() // Store conversation history
+    private var conversationHistory = SpannableStringBuilder() // Store conversation history with formatting
 
     private val TAG = "MainActivity" // For logging
     
@@ -95,7 +96,7 @@ class MainActivity : ComponentActivity() {
         conversationScrollView = findViewById(R.id.conversationScrollView)
         
         // Initialize conversation history if empty
-        if (conversationHistory.isEmpty()) {
+        if (conversationHistory.length == 0) {
             val welcomeMessage = "MAIN_ANSWER: Hi! I'm your plant health assistant. I can help diagnose plant diseases, provide care recommendations, and guide you through treatment procedures. Upload a photo or ask me about plant care to get started.\n\nACTION_ITEMS: Send Image | Give me watering schedule | Show fertilization procedure | Explain prevention methods"
             addAssistantMessage(welcomeMessage)
             
@@ -281,10 +282,55 @@ class MainActivity : ComponentActivity() {
         assistantMsg += "\n\n"
         
         Log.d(TAG, "Adding structured assistant message to history. Current length: ${conversationHistory.length}")
-        conversationHistory.append(assistantMsg)
+        
+        // Create a SpannableString for the new message and apply action item spans immediately
+        val spannableMessage = SpannableString(assistantMsg)
+        applyActionItemSpansToText(spannableMessage, actionItems)
+        
+        // Append to conversation history
+        conversationHistory.append(spannableMessage)
         Log.d(TAG, "After adding structured assistant message. New length: ${conversationHistory.length}")
         
         updateConversationDisplay()
+    }
+
+    // Helper method to apply action item spans to a specific text
+    private fun applyActionItemSpansToText(spannableText: SpannableString, actionItems: List<String>) {
+        if (actionItems.isEmpty()) return
+        
+        val text = spannableText.toString()
+        val quickActionsIndex = text.indexOf("📋 Quick Actions:")
+        
+        if (quickActionsIndex != -1) {
+            actionItems.forEach { actionItem ->
+                val bulletItemText = "• $actionItem"
+                val itemIndex = text.indexOf(bulletItemText, quickActionsIndex)
+                
+                if (itemIndex != -1) {
+                    val itemEndIndex = itemIndex + bulletItemText.length
+                    
+                    // Create clickable span for this specific action item
+                    val clickableSpan = object : ClickableSpan() {
+                        override fun onClick(view: View) {
+                            messageInput.setText(actionItem.trim())
+                            conversationScrollView.post {
+                                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                            }
+                            Toast.makeText(this@MainActivity, "Action added to input", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                    // Apply styling spans
+                    spannableText.setSpan(clickableSpan, itemIndex, itemEndIndex, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableText.setSpan(
+                        ForegroundColorSpan(ContextCompat.getColor(this, android.R.color.holo_blue_dark)),
+                        itemIndex, itemEndIndex, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    spannableText.setSpan(UnderlineSpan(), itemIndex, itemEndIndex, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableText.setSpan(StyleSpan(Typeface.BOLD), itemIndex, itemEndIndex, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+        }
     }
 
     // Helper method to format messages with collapsible JSON and highlighted questions
@@ -342,71 +388,12 @@ class MainActivity : ComponentActivity() {
         return "\n▼ $label (tap to expand)\n[COLLAPSED_JSON:$jsonString]\n"
     }
 
-    // Helper method to make action items clickable and handle JSON collapsibles
-    private fun makeActionItemsClickable() {
+    // Helper method to handle JSON collapsibles (action items are now handled immediately when added)
+    private fun makeJsonCollapsiblesClickable() {
         val text = responseTextView.text.toString()
         
         val spannableString = SpannableString(text)
         var foundInteractiveElements = false
-        
-        // Handle action items (look for bullet points under "Quick Actions:")
-        val actionItemPattern = "• [^\\n]+"
-        val actionItemRegex = Regex(actionItemPattern)
-        
-        // Only look for action items that appear after "📋 Quick Actions:"
-        val quickActionsIndex = text.indexOf("📋 Quick Actions:")
-        if (quickActionsIndex != -1) {
-            val actionSectionText = text.substring(quickActionsIndex)
-            
-            actionItemRegex.findAll(actionSectionText).forEach { match ->
-                foundInteractiveElements = true
-                val actionItemText = match.value
-                val actualStartIndex = quickActionsIndex + match.range.first
-                val actualEndIndex = quickActionsIndex + match.range.last
-                
-                val clickableSpan = object : ClickableSpan() {
-                    override fun onClick(view: View) {
-                        // Remove the bullet point and auto-fill the action in the message input
-                        val cleanAction = actionItemText.replace("• ", "").trim()
-                        messageInput.setText(cleanAction)
-                        // Scroll to input field
-                        conversationScrollView.post {
-                            conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
-                        }
-                        Toast.makeText(this@MainActivity, "Action added to input", Toast.LENGTH_SHORT).show()
-                    }
-                }
-                
-                spannableString.setSpan(
-                    clickableSpan, 
-                    actualStartIndex, 
-                    actualEndIndex + 1, 
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-                
-                // Make the action item blue, underlined, and bold
-                spannableString.setSpan(
-                    ForegroundColorSpan(ContextCompat.getColor(this, android.R.color.holo_blue_dark)),
-                    actualStartIndex,
-                    actualEndIndex + 1,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-                
-                spannableString.setSpan(
-                    UnderlineSpan(),
-                    actualStartIndex,
-                    actualEndIndex + 1,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-                
-                spannableString.setSpan(
-                    StyleSpan(Typeface.BOLD),
-                    actualStartIndex,
-                    actualEndIndex + 1,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-            }
-        }
         
         // Handle collapsible JSON blocks
         val collapsedJsonRegex = Regex("▼ ([^\\n]+) \\(tap to expand\\)\\n\\[COLLAPSED_JSON:([^\\]]+)\\]")
@@ -507,8 +494,8 @@ class MainActivity : ComponentActivity() {
                     conversationHistory.append(updatedText)
                     responseTextView.text = updatedText
                     
-                    // Re-apply clickable spans
-                    makeActionItemsClickable()
+                    // Re-apply clickable spans for JSON
+                    makeJsonCollapsiblesClickable()
                     
                     Toast.makeText(this@MainActivity, "JSON collapsed", Toast.LENGTH_SHORT).show()
                 }
@@ -555,11 +542,12 @@ class MainActivity : ComponentActivity() {
     private fun updateConversationDisplay() {
         runOnUiThread {
             Log.d(TAG, "Updating conversation display. History length: ${conversationHistory.length}")
-            responseTextView.text = conversationHistory.toString()
-            Log.d(TAG, "Display updated. TextView length: ${responseTextView.text.length}")
             
-            // Apply clickable spans AFTER setting text
-            makeActionItemsClickable()
+            // Set the spannable text directly to preserve existing formatting and spans
+            responseTextView.text = conversationHistory
+            responseTextView.movementMethod = LinkMovementMethod.getInstance()
+            
+            Log.d(TAG, "Display updated. TextView length: ${responseTextView.text.length}")
             
             // Force layout update
             responseTextView.requestLayout()
