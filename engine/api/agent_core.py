@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import re
 from typing import Optional, Dict, Callable
 from contextvars import ContextVar
 from dotenv import load_dotenv
@@ -288,7 +289,15 @@ class AgentCore:
             "IMPORTANT: You have access to the full conversation history. Use previous classification results and context to provide helpful responses even when no new image is provided. "
             "You can reference previous diagnoses, answer follow-up questions about past results, and provide general plant care advice based on the conversation history. "
             "CRITICAL: When no new image is provided (system_context is empty), you MUST use the conversation history to answer questions. Do NOT try to call any tools. "
-            "EXAMPLE: If someone asks 'What did we find about my plant?' and there's no new image, look at the conversation history for previous results and say something like 'Based on our previous analysis, we found...'"
+            "EXAMPLE: If someone asks 'What did we find about my plant?' and there's no new image, look at the conversation history for previous results and say something like 'Based on our previous analysis, we found...' "
+            "\n\nRESPONSE FORMAT REQUIREMENT: "
+            "When providing responses, you MUST structure your output in the following format: "
+            "MAIN_ANSWER: <your main response content here> "
+            "ACTION_ITEMS: <actionable items the user can request> "
+            "This separation is MANDATORY. Put your primary answer/diagnosis/information in MAIN_ANSWER section, and specific actionable items in ACTION_ITEMS section. "
+            "ACTION_ITEMS should be specific, actionable requests like 'Send me a prescription for this disease', 'Give me watering schedule', 'Show fertilization procedure', 'Provide treatment steps', 'Explain prevention methods', etc. "
+            "Make each action item a complete, tappable request that users can immediately act upon. Separate multiple action items with ' | '. "
+            "BOTH sections are required in every response."
         )
 
         prompt = ChatPromptTemplate.from_messages([
@@ -382,6 +391,42 @@ class AgentCore:
             "configurable": {"session_id": session_id}
         })
 
+    def parse_structured_response(self, response_text: str) -> Dict[str, str]:
+        """Parse structured response into main answer and action items."""
+        logger.debug(f"Parsing structured response: {response_text}")
+        
+        # Initialize default values
+        main_answer = ""
+        action_items = ""
+        
+        try:
+            # Look for MAIN_ANSWER section
+            main_answer_match = re.search(r'MAIN_ANSWER:\s*(.*?)(?=ACTION_ITEMS:|$)', response_text, re.DOTALL | re.IGNORECASE)
+            if main_answer_match:
+                main_answer = main_answer_match.group(1).strip()
+            
+            # Look for ACTION_ITEMS section
+            action_items_match = re.search(r'ACTION_ITEMS:\s*(.*?)$', response_text, re.DOTALL | re.IGNORECASE)
+            if action_items_match:
+                action_items = action_items_match.group(1).strip()
+            
+            # Fallback: if no structured format found, treat entire response as main answer
+            if not main_answer and not action_items:
+                main_answer = response_text.strip()
+                logger.warning("No structured format found in response, treating entire response as main answer")
+            
+        except Exception as e:
+            logger.error(f"Error parsing structured response: {e}")
+            main_answer = response_text.strip()
+        
+        result = {
+            "main_answer": main_answer,
+            "action_items": action_items
+        }
+        
+        logger.debug(f"Parsed response - Main: '{main_answer[:100]}...', Action Items: '{action_items[:100]}...'")
+        return result
+
     async def summarize_response(self, final_text: str, session_id: str):
         classification_history = self._get_classification_history(session_id)
         prompt = (
@@ -389,6 +434,14 @@ class AgentCore:
                 "to answer the user's latest question. If an image is present, respond to the classification result as before. "
                 "If the image is not present, use the classification history (shown as 'Previous Results') to answer. "
                 "Always follow up with a relevant question.\n\n"
+                "RESPONSE FORMAT REQUIREMENT: "
+                "You MUST structure your output in the following format: "
+                "MAIN_ANSWER: <your main response content here> "
+                "ACTION_ITEMS: <actionable items the user can request> "
+                "This separation is MANDATORY. Put your primary answer/diagnosis/information in MAIN_ANSWER section, and specific actionable items in ACTION_ITEMS section. "
+                "ACTION_ITEMS should be specific, actionable requests like 'Send me a prescription for this disease', 'Give me watering schedule', 'Show fertilization procedure', 'Provide treatment steps', 'Explain prevention methods', etc. "
+                "Make each action item a complete, tappable request that users can immediately act upon. Separate multiple action items with ' | '. "
+                "BOTH sections are required in your response.\n\n"
                 "Previous Results:\n" +
                 str(classification_history) + "\n"
                                              "Latest:\n" +

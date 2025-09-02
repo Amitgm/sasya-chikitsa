@@ -71,9 +71,21 @@ class AgentAPI:
             
             if should_summarize:
                 summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
-                return {"reply": summary}
+                # Parse structured response to separate main answer from action items
+                structured_response = self.agent_core.parse_structured_response(summary)
+                return {
+                    "reply": structured_response.get("main_answer", summary),
+                    "action_items": structured_response.get("action_items", ""),
+                    "has_structured_format": bool(structured_response.get("action_items"))
+                }
             else:
-                return {"reply": final_text}
+                # Parse even non-summarized responses for potential structured format
+                structured_response = self.agent_core.parse_structured_response(final_text)
+                return {
+                    "reply": structured_response.get("main_answer", final_text),
+                    "action_items": structured_response.get("action_items", ""),
+                    "has_structured_format": bool(structured_response.get("action_items"))
+                }
 
         @self.app.get("/session-history")
         async def get_default_session_history():
@@ -207,9 +219,31 @@ class AgentAPI:
                     if should_summarize:
                         emit("Summarizing response...")
                         summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
-                        emit(summary)
+                        # Parse structured response for streaming
+                        structured_response = self.agent_core.parse_structured_response(summary)
+                        
+                        # Stream main answer first
+                        main_answer = structured_response.get("main_answer", summary)
+                        if main_answer:
+                            emit(main_answer)
+                        
+                        # Stream action items separately if they exist
+                        action_items = structured_response.get("action_items", "")
+                        if action_items:
+                            emit("\n\n" + action_items)
                     else:
-                        emit(final_text)
+                        # Parse even non-summarized responses for potential structured format
+                        structured_response = self.agent_core.parse_structured_response(final_text)
+                        
+                        # Stream main answer first
+                        main_answer = structured_response.get("main_answer", final_text)
+                        if main_answer:
+                            emit(main_answer)
+                        
+                        # Stream action items separately if they exist
+                        action_items = structured_response.get("action_items", "")
+                        if action_items:
+                            emit("\n\n" + action_items)
                 finally:
                     self.agent_core._emit_ctx.reset(token)
                     if handle and handle in self.agent_core._image_emitters:
