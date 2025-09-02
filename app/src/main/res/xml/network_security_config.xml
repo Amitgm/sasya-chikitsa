@@ -3,13 +3,14 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">10.0.2.2</domain> <!-- Standard Android Emulator localhost -->
         <domain includeSubdomains="true">localhost</domain>   <!-- For local development if using a hostname -->
-        <!-- Add any other specific local IP or hostname you use for development -->
-        <!-- <domain includeSubdomains="true">your.local.dev.server.ip</domain> -->
+        <domain includeSubdomains="true">192.168.0.0/16</domain> <!-- Local network range -->
+        <domain includeSubdomains="true">172.16.0.0/12</domain> <!-- Private network range -->
+        <domain includeSubdomains="true">10.0.0.0/8</domain> <!-- Private network range -->
+        <!-- Add support for common development IPs -->
     </domain-config>
 
-    <!-- You can also opt-out of cleartext for all other domains (recommended) -->
-    <!-- This base-config applies to all connections not covered by a specific domain-config -->
-    <base-config cleartextTrafficPermitted="false">
+    <!-- Allow cleartext traffic for development/local servers -->
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

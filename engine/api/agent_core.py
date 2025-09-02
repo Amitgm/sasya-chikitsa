@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 import re
-from typing import Optional, Dict, Callable
+from typing import Optional, Dict, Callable, List, Union
 from contextvars import ContextVar
 from dotenv import load_dotenv
 
@@ -414,13 +414,13 @@ class AgentCore:
             "configurable": {"session_id": session_id}
         })
 
-    def parse_structured_response(self, response_text: str) -> Dict[str, str]:
-        """Parse structured response into main answer and action items."""
+    def parse_structured_response(self, response_text: str) -> Dict[str, Union[str, List[str]]]:
+        """Parse structured response into main answer and action items array."""
         logger.debug(f"Parsing structured response: {response_text}")
         
         # Initialize default values
         main_answer = ""
-        action_items = ""
+        action_items_str = ""
         
         try:
             # Look for MAIN_ANSWER section
@@ -431,32 +431,38 @@ class AgentCore:
             # Look for ACTION_ITEMS section
             action_items_match = re.search(r'ACTION_ITEMS:\s*(.*?)$', response_text, re.DOTALL | re.IGNORECASE)
             if action_items_match:
-                action_items = action_items_match.group(1).strip()
+                action_items_str = action_items_match.group(1).strip()
             
             # Fallback: if no structured format found, create one with intelligent action items
-            if not main_answer and not action_items:
+            if not main_answer and not action_items_str:
                 main_answer = response_text.strip()
-                action_items = self._generate_fallback_action_items(main_answer)
-                logger.warning(f"No structured format found, created fallback format with action items: {action_items}")
-            elif main_answer and not action_items:
+                action_items_str = self._generate_fallback_action_items(main_answer)
+                logger.warning(f"No structured format found, created fallback format with action items: {action_items_str}")
+            elif main_answer and not action_items_str:
                 # Main answer found but no action items, generate fallback action items
-                action_items = self._generate_fallback_action_items(main_answer)
-                logger.warning(f"Found main answer but no action items, generated fallback: {action_items}")
+                action_items_str = self._generate_fallback_action_items(main_answer)
+                logger.warning(f"Found main answer but no action items, generated fallback: {action_items_str}")
             
         except Exception as e:
             logger.error(f"Error parsing structured response: {e}")
             main_answer = response_text.strip()
-            action_items = self._generate_fallback_action_items(main_answer)
+            action_items_str = self._generate_fallback_action_items(main_answer)
+        
+        # Convert pipe-separated string to array
+        action_items_array = []
+        if action_items_str:
+            action_items_array = [item.strip() for item in action_items_str.split("|") if item.strip()]
         
         result = {
             "main_answer": main_answer,
-            "action_items": action_items
+            "action_items": action_items_array
         }
         
-        logger.debug(f"Parsed response - Main: '{main_answer[:100]}...', Action Items: '{action_items[:100]}...'")
+        logger.debug(f"Parsed response - Main: '{main_answer[:100]}...', Action Items: {action_items_array}")
         return result
 
-    def _generate_fallback_action_items(self, main_answer: str) -> str:
+    @staticmethod
+    def _generate_fallback_action_items(main_answer: str) -> str:
         """Generate appropriate action items based on the main answer content."""
         action_items = []
         
