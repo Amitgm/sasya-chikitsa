@@ -34,6 +34,7 @@ import androidx.core.content.ContextCompat
 
 import com.example.sasya_chikitsa.network.request.ChatRequestData // Import data class
 import com.example.sasya_chikitsa.network.RetrofitClient // Import Retrofit client
+import com.example.sasya_chikitsa.config.ServerConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -48,6 +49,9 @@ import org.json.JSONObject
 import org.json.JSONArray
 import org.json.JSONException
 import android.text.SpannableStringBuilder
+import android.app.AlertDialog
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 
 class MainActivity : ComponentActivity() {
     private lateinit var imagePreview: ImageView
@@ -57,6 +61,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var removeImageBtn: ImageButton
     private lateinit var uploadSection: CardView
     private lateinit var imageFileName: TextView
+    private lateinit var serverStatus: TextView
+    private lateinit var settingsBtn: ImageButton
 
     private lateinit var responseTextView: TextView // TextView to show stream output
     private lateinit var conversationScrollView: ScrollView // ScrollView for conversation
@@ -85,6 +91,10 @@ class MainActivity : ComponentActivity() {
         try {
         setContentView(R.layout.activity_main)
 
+        // Initialize RetrofitClient with context for configurable server URL
+        RetrofitClient.initialize(this)
+        Log.d(TAG, "Server URL configured: ${ServerConfig.getServerUrl(this)}")
+
         imagePreview = findViewById(R.id.imagePreview)
         uploadBtn = findViewById(R.id.uploadBtn)
         sendBtn = findViewById(R.id.sendBtn)
@@ -92,8 +102,13 @@ class MainActivity : ComponentActivity() {
         removeImageBtn = findViewById(R.id.removeImageBtn)
         uploadSection = findViewById(R.id.uploadSection)
         imageFileName = findViewById(R.id.imageFileName)
+        serverStatus = findViewById(R.id.serverStatus)
+        settingsBtn = findViewById(R.id.settingsBtn)
         responseTextView = findViewById(R.id.responseTextView)
         conversationScrollView = findViewById(R.id.conversationScrollView)
+        
+        // Update server status display
+        updateServerStatusDisplay()
         
         // Initialize conversation history if empty
         if (conversationHistory.length == 0) {
@@ -110,6 +125,11 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Error initializing app: ${e.message}", Toast.LENGTH_LONG).show()
             finish()
             return
+        }
+
+        // Settings Button
+        settingsBtn.setOnClickListener {
+            showServerUrlDialog()
         }
 
         // Upload Button
@@ -705,5 +725,94 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+    
+
+    
+    private fun updateServerStatusDisplay() {
+        val currentUrl = ServerConfig.getServerUrl(this)
+        val defaultUrls = ServerConfig.getDefaultUrls()
+        
+        // Find friendly name for current URL
+        val friendlyName = defaultUrls.find { it.second == currentUrl }?.first ?: "Custom"
+        val shortUrl = when {
+            currentUrl.contains("10.0.2.2") -> "Emulator"
+            currentUrl.contains("localhost") -> "Localhost"
+            currentUrl.contains("192.168") -> "Local Network"
+            currentUrl.contains("staging") -> "Staging"
+            currentUrl.contains("production") || currentUrl.contains("prod") -> "Production"
+            else -> currentUrl.replace("http://", "").replace("https://", "").take(20)
+        }
+        
+        serverStatus.text = "📡 Server: $shortUrl"
+        Log.d(TAG, "Server status updated: $friendlyName - $currentUrl")
+    }
+    
+    private fun showServerUrlDialog() {
+        val defaultUrls = ServerConfig.getDefaultUrls()
+        val currentUrl = ServerConfig.getServerUrl(this)
+        
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Configure Server URL")
+        
+        // Create a custom layout with spinner and input field
+        val layout = layoutInflater.inflate(R.layout.dialog_server_url, null)
+        val spinner = layout.findViewById<Spinner>(R.id.urlSpinner)
+        val customUrlInput = layout.findViewById<EditText>(R.id.customUrlInput)
+        
+        // Setup spinner with default URLs
+        val urlLabels = defaultUrls.map { it.first }
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, urlLabels)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
+        
+        // Pre-select current URL if it matches a default
+        val currentIndex = defaultUrls.indexOfFirst { it.second == currentUrl }
+        if (currentIndex != -1) {
+            spinner.setSelection(currentIndex)
+        } else {
+            // Select "Custom" and populate input field
+            spinner.setSelection(defaultUrls.size - 1)
+            customUrlInput.setText(currentUrl)
+        }
+        
+        // Show/hide custom input based on selection
+        spinner.setOnItemSelectedListener(object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                customUrlInput.visibility = if (position == defaultUrls.size - 1) android.view.View.VISIBLE else android.view.View.GONE
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        })
+        
+        builder.setView(layout)
+        builder.setPositiveButton("Save") { _, _ ->
+            val selectedIndex = spinner.selectedItemPosition
+            val newUrl = if (selectedIndex == defaultUrls.size - 1) {
+                // Custom URL
+                customUrlInput.text.toString().trim().let { url ->
+                    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                        "http://$url"
+                    } else {
+                        url
+                    }
+                }
+            } else {
+                defaultUrls[selectedIndex].second
+            }
+            
+            if (newUrl.isNotEmpty() && ServerConfig.isValidUrl(newUrl)) {
+                ServerConfig.setServerUrl(this, newUrl)
+                RetrofitClient.refreshInstance() // Force recreate with new URL
+                updateServerStatusDisplay() // Update the status display
+                Toast.makeText(this, "Server URL updated to: $newUrl", Toast.LENGTH_LONG).show()
+                Log.d(TAG, "Server URL updated to: $newUrl")
+            } else {
+                Toast.makeText(this, "Please enter a valid URL (e.g., http://192.168.1.100:8080/)", Toast.LENGTH_LONG).show()
+            }
+        }
+        builder.setNegativeButton("Cancel", null)
+        
+        val dialog = builder.create()
+        dialog.show()
     }
 }

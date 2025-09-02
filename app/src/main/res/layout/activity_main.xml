@@ -68,8 +68,31 @@
                     android:layout_height="wrap_content"
                     android:text="Upload a photo of your plant for instant health analysis"
                     android:textSize="12sp"
-                    android:textColor="#718096"/>
+                    android:textColor="#718096"
+                    android:layout_marginBottom="4dp"/>
+
+                <!-- Server Status -->
+                <TextView
+                    android:id="@+id/serverStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📡 Server: Android Emulator"
+                    android:textSize="10sp"
+                    android:textColor="#4299E1"
+                    android:textStyle="italic"/>
             </LinearLayout>
+
+            <!-- Settings Button -->
+            <ImageButton
+                android:id="@+id/settingsBtn"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_menu_manage"
+                android:background="@drawable/modern_button"
+                android:padding="12dp"
+                android:layout_marginLeft="16dp"
+                android:contentDescription="Server Settings"
+                android:scaleType="fitCenter" />
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 

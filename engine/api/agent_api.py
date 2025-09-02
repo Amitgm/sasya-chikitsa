@@ -77,7 +77,7 @@ class AgentAPI:
                 structured_response = self.agent_core.parse_structured_response(structured_summary)
                 return {
                     "reply": structured_response.get("main_answer", structured_summary),
-                    "action_items": structured_response.get("action_items", ""),
+                    "action_items": structured_response.get("action_items", []),
                     "has_structured_format": bool(structured_response.get("action_items"))
                 }
             else:
@@ -87,7 +87,7 @@ class AgentAPI:
                 structured_response = self.agent_core.parse_structured_response(structured_final_text)
                 return {
                     "reply": structured_response.get("main_answer", structured_final_text),
-                    "action_items": structured_response.get("action_items", ""),
+                    "action_items": structured_response.get("action_items", []),
                     "has_structured_format": bool(structured_response.get("action_items"))
                 }
 
@@ -234,9 +234,10 @@ class AgentAPI:
                             emit(main_answer)
                         
                         # Stream action items separately if they exist
-                        action_items = structured_response.get("action_items", "")
+                        action_items = structured_response.get("action_items", [])
                         if action_items:
-                            emit("\n\n" + action_items)
+                            action_items_text = " | ".join(action_items)
+                            emit("\n\n" + action_items_text)
                     else:
                         # Force structure as safety net in case LLM didn't follow format
                         structured_final_text = self.agent_core.force_structure_response(final_text)
@@ -249,9 +250,10 @@ class AgentAPI:
                             emit(main_answer)
                         
                         # Stream action items separately if they exist
-                        action_items = structured_response.get("action_items", "")
+                        action_items = structured_response.get("action_items", [])
                         if action_items:
-                            emit("\n\n" + action_items)
+                            action_items_text = " | ".join(action_items)
+                            emit("\n\n" + action_items_text)
                 finally:
                     self.agent_core._emit_ctx.reset(token)
                     if handle and handle in self.agent_core._image_emitters:
