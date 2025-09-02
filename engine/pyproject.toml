@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "asyncio>=4.0.0",
+    "chromadb>=1.0.20",
     "contextvars>=2.4",
     "dotenv>=0.9.9",
     "fastapi>=0.116.1",
