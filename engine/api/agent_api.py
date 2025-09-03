@@ -70,7 +70,8 @@ class AgentAPI:
             logger.debug(f"Should summarize response: {should_summarize}")
             
             if should_summarize:
-                summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
+                # Pass the user's text to the summarize_response for processing along with image classification
+                summary = await self.agent_core.summarize_response(final_text, req.session_id or "default", req.message)
                 # Force structure as safety net in case LLM didn't follow format
                 structured_summary = self.agent_core.force_structure_response(summary)
                 # Parse structured response to separate main answer from action items
@@ -222,7 +223,8 @@ class AgentAPI:
                     
                     if should_summarize:
                         emit("Summarizing response...")
-                        summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
+                        # Pass the user's text to the summarize_response for processing along with image classification
+                        summary = await self.agent_core.summarize_response(final_text, req.session_id or "default", req.message)
                         # Force structure as safety net in case LLM didn't follow format
                         structured_summary = self.agent_core.force_structure_response(summary)
                         # Parse structured response for streaming
