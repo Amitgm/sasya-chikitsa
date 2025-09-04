@@ -538,6 +538,79 @@ class AgentCore:
                 "intermediate_steps": []
             }
 
+    async def _handle_image_classification(self, inputs: Dict, session_id: str):
+        """Handle image classification directly without ReAct format confusion."""
+        
+        user_input = inputs.get("input", "")
+        system_context = inputs.get("system_context", "")
+        
+        logger.debug(f"Handling image classification: input='{user_input}', context='{system_context}'")
+        
+        # Extract image handle from system context
+        import re
+        handle_match = re.search(r'image_handle=([^,\s]+)', system_context)
+        if not handle_match:
+            return {
+                "output": "ERROR: No valid image handle found in system context.",
+                "intermediate_steps": []
+            }
+        
+        image_handle = handle_match.group(1)
+        logger.info(f"🔍 Extracted image handle: {image_handle}")
+        
+        # Call the image classification logic directly (same as in classify_leaf_safe tool)
+        try:
+            logger.info(f"🔧 Processing image classification for handle: {image_handle}")
+            
+            # Check if there are any images available at all
+            if not self.image_store:
+                return {
+                    "output": "ERROR: No images are currently available for classification. Please ask the user to upload an image first.",
+                    "intermediate_steps": []
+                }
+            
+            # Check if the specific handle exists
+            if image_handle not in self.image_store:
+                return {
+                    "output": f"ERROR: Image handle '{image_handle}' not found. Available handles: {list(self.image_store.keys())}. Please ask the user to upload a new image.",
+                    "intermediate_steps": []
+                }
+            
+            # If we get here, we have a valid image, so do the actual classification
+            logger.info(f"✅ Starting image classification for handle: {image_handle}")
+            
+            # Call the classification logic directly (same as in the tool)
+            image_b64 = self.image_store[image_handle]
+            logger.debug(f"Image found, proceeding with classification")
+            emitter = self._image_emitters.get(image_handle) or self._emit_ctx.get()
+            outputs = []
+            for chunk in self.model.predict_leaf_classification(image_b64, user_input or ""):
+                chunk_str = str(chunk).rstrip("\n")
+                outputs.append(chunk_str)
+                if emitter:
+                    try:
+                        emitter(chunk_str)
+                    except Exception:
+                        pass
+            
+            classification_result = "\n".join(outputs)
+            logger.info(f"✅ Classification completed: {classification_result[:200]}...")
+            
+            # Create a proper agent result format
+            return {
+                "output": classification_result,
+                "intermediate_steps": [
+                    (f"Image classification completed for {image_handle}", classification_result)
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in direct image classification: {e}")
+            return {
+                "output": f"ERROR: Failed to classify image - {str(e)}",
+                "intermediate_steps": []
+            }
+
     def _get_classification_history(self, session_id: str) -> str:
         history = self.get_history({"configurable": {"session_id": session_id}})
         results = []
@@ -572,13 +645,13 @@ class AgentCore:
         logger.debug(f"has_image: {has_image}")
         logger.debug(f"inputs: {inputs}")
         
-        # PRE-FILTER: Handle non-image scenarios directly to avoid ReAct format confusion
+        # PRE-FILTER: Handle both scenarios directly to avoid ReAct format confusion entirely
         if not has_image:
             logger.info("🚀 Using direct conversational response (bypassing ReAct agent)")
             return await self._handle_conversational_question(inputs, session_id)
-        
-        # For image scenarios, use the full agent
-        logger.info("🔧 Using ReAct agent for image classification")
+        else:
+            logger.info("🔧 Using direct image classification (bypassing ReAct agent)")
+            return await self._handle_image_classification(inputs, session_id)
         
         # Add tool guidance to help the agent understand what's available
         tool_guidance = self.get_tool_availability_guidance(system_context)
