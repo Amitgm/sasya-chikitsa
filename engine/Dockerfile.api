@@ -26,7 +26,15 @@ RUN pip install --no-cache-dir --upgrade pip -r requirements.txt
 
 # Stage 4: Copy your application code into the container
 # This copies everything from your 'engine' folder into the container's /app directory.
-COPY . .
+# COPY . .
+COPY ./api ./api
+COPY ./ml ./ml
+COPY ./resources ./resources
+COPY ./__init__.py ./__init__.py
+COPY ./.env ./.env
+COPY ./.python-version ./.python-version
+COPY ./pyproject.toml ./pyproject.toml
+COPY ./uv.lock ./uv.lock
 
 # Stage 5: Expose the port the app runs on
 # This informs Docker that the container listens on port 8080.
