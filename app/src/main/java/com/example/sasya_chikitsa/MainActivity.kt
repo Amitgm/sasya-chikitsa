@@ -43,6 +43,7 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.UUID
 import com.example.sasya_chikitsa.network.fetchChatStream
 import com.example.sasya_chikitsa.ui.theme.Sasya_ChikitsaTheme
 import org.json.JSONObject
@@ -112,7 +113,7 @@ class MainActivity : ComponentActivity() {
         
         // Initialize conversation history if empty
         if (conversationHistory.length == 0) {
-            val welcomeMessage = "MAIN_ANSWER: Hi! I'm your plant health assistant. I can help diagnose plant diseases, provide care recommendations, and guide you through treatment procedures. Upload a photo or ask me about plant care to get started.\n\nACTION_ITEMS: Send Image | Give me watering schedule | Show fertilization procedure | Explain prevention methods"
+            val welcomeMessage = "MAIN_ANSWER: Welcome to Sasya Chikitsa! I'm your AI plant health assistant. I can help diagnose plant diseases, provide care recommendations, and guide you through treatment procedures. Each app session starts fresh with a new conversation. Upload a photo or ask me about plant care to get started.\n\nACTION_ITEMS: Send Image | Give me watering schedule | Show fertilization procedure | Explain prevention methods"
             addAssistantMessage(welcomeMessage)
             
             // Add some test content to demonstrate action items
@@ -176,7 +177,7 @@ class MainActivity : ComponentActivity() {
             messageInput.text.clear()
 
             // Fetch the stream
-            fetchChatStreamFromServer(message, imageBase64, "session1")
+            fetchChatStreamFromServer(message, imageBase64, sessionId)
             
                 // Clear the image after sending (one-time use) - silently
                 if (currentImageUri != null) {
@@ -616,6 +617,11 @@ class MainActivity : ComponentActivity() {
     // Variables for streaming response handling
     private val streamingChunks = mutableListOf<String>()
     private var isCurrentlyStreaming = false
+    
+    // Generate unique session ID for this app instance
+    private val sessionId: String = UUID.randomUUID().toString().also { 
+        Log.i(TAG, "🆔 New session created: $it") 
+    }
 
     /**
      * Add a streaming chunk immediately to the UI while preserving conversation history
