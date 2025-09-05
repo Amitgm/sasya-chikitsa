@@ -1,12 +1,15 @@
-FROM python:3.10
+FROM python:3.12-slim
 
 WORKDIR /app
+
 COPY ./requirements.txt /app/requirements.txt
+
+RUN pip3 install --no-cache-dir -r /app/requirements.txt
+
+
 COPY ./rag_with_ollama_fastapi.py /app/rag_with_ollama_fastapi.py
+
 COPY ./chroma_capstone_db_new /app/chroma_capstone_db_new
-
-
-RUN pip3 install -r /app/requirements.txt
 
 EXPOSE 5050
 
