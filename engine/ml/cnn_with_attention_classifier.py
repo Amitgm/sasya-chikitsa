@@ -116,5 +116,5 @@ class CNNWithAttentionClassifier(Layer):
         yield f"Finalizing diagnosis...\n"
         time.sleep(1.0)  # Brief pause before final result
         
-        yield f"Diagnosis Complete! Class: {predicted_class_label} | Health Status: {kissan_cc_class_label} | Confidence: {prediction_probability:.2f}\n"
+        yield (f"Diagnosis Complete! Health Status: {predicted_class_label} with confidence {prediction_probability:.2f}")
         return
