@@ -43,6 +43,7 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.UUID
 import com.example.sasya_chikitsa.network.fetchChatStream
 import com.example.sasya_chikitsa.ui.theme.Sasya_ChikitsaTheme
 import org.json.JSONObject
@@ -112,7 +113,7 @@ class MainActivity : ComponentActivity() {
         
         // Initialize conversation history if empty
         if (conversationHistory.length == 0) {
-            val welcomeMessage = "MAIN_ANSWER: Hi! I'm your plant health assistant. I can help diagnose plant diseases, provide care recommendations, and guide you through treatment procedures. Upload a photo or ask me about plant care to get started.\n\nACTION_ITEMS: Send Image | Give me watering schedule | Show fertilization procedure | Explain prevention methods"
+            val welcomeMessage = "MAIN_ANSWER: Welcome to Sasya Chikitsa! I'm your AI plant health assistant. I can help diagnose plant diseases, provide care recommendations, and guide you through treatment procedures. Each app session starts fresh with a new conversation. Upload a photo or ask me about plant care to get started.\n\nACTION_ITEMS: Send Image | Give me watering schedule | Show fertilization procedure | Explain prevention methods"
             addAssistantMessage(welcomeMessage)
             
             // Add some test content to demonstrate action items
@@ -176,7 +177,7 @@ class MainActivity : ComponentActivity() {
             messageInput.text.clear()
 
             // Fetch the stream
-            fetchChatStreamFromServer(message, imageBase64, "session1")
+            fetchChatStreamFromServer(message, imageBase64, sessionId)
             
                 // Clear the image after sending (one-time use) - silently
                 if (currentImageUri != null) {
@@ -613,6 +614,163 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Variables for streaming response handling
+    private val streamingChunks = mutableListOf<String>()
+    private var isCurrentlyStreaming = false
+    
+    // Generate unique session ID for this app instance
+    private val sessionId: String = UUID.randomUUID().toString().also { 
+        Log.i(TAG, "🆔 New session created: $it") 
+    }
+
+    /**
+     * Add a streaming chunk immediately to the UI while preserving conversation history
+     */
+    private fun addStreamingChunk(chunk: String) {
+        runOnUiThread {
+            // 📊 ENHANCED LOGGING - Track streaming chunks
+            Log.i(TAG, "🔥 STREAMING CHUNK RECEIVED:")
+            Log.i(TAG, "   📦 Chunk content: '$chunk'")
+            Log.i(TAG, "   📊 Chunk length: ${chunk.length} characters")
+            Log.i(TAG, "   ⏰ Timestamp: ${System.currentTimeMillis()}")
+            Log.i(TAG, "   🔄 Currently streaming: $isCurrentlyStreaming")
+            Log.i(TAG, "   📈 Total chunks so far: ${streamingChunks.size}")
+            
+            if (!isCurrentlyStreaming) {
+                // Starting new streaming - clear any typing indicator
+                Log.i(TAG, "🚀 STARTING NEW STREAMING SESSION")
+                removeTypingIndicator()
+                streamingChunks.clear()
+                isCurrentlyStreaming = true
+                
+                // Add assistant header for the streaming response
+                responseTextView.append("🤖 Plant Analysis Progress:\n")
+                Log.i(TAG, "   ✅ Added assistant header with progress indicator")
+            }
+            
+            // Add the chunk to the display and track it
+            streamingChunks.add(chunk)
+            
+            // 🔍 PIPE-SEPARATED ACTION ITEMS DETECTION
+            if (isPipeSeperatedActionItems(chunk)) {
+                Log.i(TAG, "🎯 DETECTED PIPE-SEPARATED ACTION ITEMS:")
+                Log.i(TAG, "   📋 Raw action items: '$chunk'")
+                
+                // Parse and display action items with special formatting
+                val actionItems = chunk.split("|").map { it.trim() }.filter { it.isNotEmpty() }
+                Log.i(TAG, "   📊 Parsed ${actionItems.size} action items")
+                
+                // Add section header for action items
+                responseTextView.append("\n📋 Recommended Actions:\n")
+                
+                // Display each action item with special formatting
+                actionItems.forEachIndexed { index, actionItem ->
+                    val actionBullet = "  ✓ $actionItem"
+                    responseTextView.append("$actionBullet\n")
+                    Log.i(TAG, "   ✓ Action ${index + 1}: '$actionItem'")
+                }
+                
+                Log.i(TAG, "   🎨 Formatted as highlighted action items list")
+                
+            } else {
+                // 🎯 REGULAR BULLET POINT FORMATTING - Each chunk as a bullet point
+                val bulletPointChunk = "  • $chunk"
+                responseTextView.append("$bulletPointChunk\n")
+                Log.i(TAG, "   💡 Formatted as regular bullet point: '$bulletPointChunk'")
+            }
+            
+            Log.i(TAG, "   📱 Added to responseTextView display")
+            
+            // Auto-scroll to show new content
+            conversationScrollView.post {
+                conversationScrollView.smoothScrollTo(0, responseTextView.bottom)
+                Log.d(TAG, "   📜 Auto-scrolled to show new content")
+            }
+            
+            Log.i(TAG, "✅ STREAMING CHUNK PROCESSED SUCCESSFULLY")
+            Log.i(TAG, "   📊 Updated total chunks: ${streamingChunks.size}")
+            Log.i(TAG, "   🎯 Display format: Bullet point list")
+            Log.i(TAG, "   " + "=".repeat(50))
+        }
+    }
+
+    /**
+     * Finalize streaming response and add it to conversation history
+     */
+    private fun finalizeStreamingResponse() {
+        runOnUiThread {
+            // 📊 ENHANCED FINALIZATION LOGGING
+            Log.i(TAG, "🏁 FINALIZING STREAMING RESPONSE:")
+            Log.i(TAG, "   🔄 Currently streaming: $isCurrentlyStreaming")
+            Log.i(TAG, "   📦 Chunks collected: ${streamingChunks.size}")
+            
+            if (isCurrentlyStreaming && streamingChunks.isNotEmpty()) {
+                Log.i(TAG, "✅ PROCESSING COLLECTED STREAMING CHUNKS:")
+                Log.i(TAG, "   📊 Total chunks to finalize: ${streamingChunks.size}")
+                
+                // Log all collected chunks
+                streamingChunks.forEachIndexed { index, chunk ->
+                    Log.i(TAG, "   📦 Chunk ${index + 1}: '$chunk'")
+                }
+                
+                // Combine all chunks into the final message
+                val fullStreamingResponse = streamingChunks.joinToString("\n")
+                
+                // IMPORTANT: Don't call addAssistantMessage() as it overwrites the streaming display!
+                // Instead, add the streamed content directly to conversation history
+                
+                // Check if this is a structured response
+                val structuredResponse = parseStructuredResponse(fullStreamingResponse)
+                
+                if (structuredResponse != null) {
+                    // Handle structured response - format with action items
+                    val formattedMainAnswer = formatMessageWithCollapsibleJson(structuredResponse.mainAnswer)
+                    var assistantMsg = "🤖 $formattedMainAnswer"
+                    
+                    if (structuredResponse.actionItems.isNotEmpty()) {
+                        assistantMsg += "\n\n📋 Quick Actions:"
+                        structuredResponse.actionItems.forEach { actionItem ->
+                            assistantMsg += "\n• $actionItem"
+                        }
+                    }
+                    assistantMsg += "\n\n"
+                    
+                    // Create spannable and add to history
+                    val spannableMessage = SpannableString(assistantMsg)
+                    applyActionItemSpansToText(spannableMessage, structuredResponse.actionItems)
+                    conversationHistory.append(spannableMessage)
+                } else {
+                    // Handle regular response - just add streamed content to history
+                    val formattedMessage = formatMessageWithCollapsibleJson(fullStreamingResponse)
+                    val assistantMsg = "🤖 $formattedMessage\n\n"
+                    conversationHistory.append(assistantMsg)
+                }
+                
+                Log.d(TAG, "Streaming content added to conversation history. New length: ${conversationHistory.length}")
+                
+                // Clean up streaming state
+                val totalChunks = streamingChunks.size
+                streamingChunks.clear()
+                isCurrentlyStreaming = false
+                
+                Log.i(TAG, "🧹 STREAMING STATE CLEANUP COMPLETE:")
+                Log.i(TAG, "   ✅ Processed ${totalChunks} chunks total")
+                Log.i(TAG, "   🔄 Streaming state reset")
+                Log.i(TAG, "   💾 Content added to conversation history")
+                Log.i(TAG, "   🎯 Bullet point formatting preserved")
+                Log.i(TAG, "✅ STREAMING RESPONSE FINALIZED SUCCESSFULLY")
+            } else {
+                // Just remove typing indicator if no streaming happened
+                Log.i(TAG, "⚠️  NO STREAMING CONTENT TO FINALIZE:")
+                Log.i(TAG, "   🔄 Currently streaming: $isCurrentlyStreaming")
+                Log.i(TAG, "   📦 Chunks available: ${streamingChunks.size}")
+                Log.i(TAG, "   🔧 Just removing typing indicator...")
+                removeTypingIndicator()
+                Log.i(TAG, "   ✅ Typing indicator removed")
+            }
+        }
+    }
+
 
 
     // Helper function to convert Uri to Base64 String
@@ -630,6 +788,36 @@ class MainActivity : ComponentActivity() {
         val byteArray = byteArrayOutputStream.toByteArray()
         inputStream.close()
         return Base64.encodeToString(byteArray, Base64.DEFAULT)
+    }
+
+    /**
+     * Detect if a chunk contains pipe-separated action items
+     */
+    private fun isPipeSeperatedActionItems(chunk: String): Boolean {
+        // 🔍 DETECTION LOGIC for pipe-separated action items
+        Log.d(TAG, "🔍 Analyzing chunk for action items: '$chunk'")
+        
+        // Check if chunk contains pipes and looks like action items
+        val containsPipes = chunk.contains("|")
+        val hasMultipleParts = chunk.split("|").size > 1
+        val partsLookLikeActions = chunk.split("|").all { part ->
+            val trimmedPart = part.trim()
+            trimmedPart.isNotEmpty() && 
+            (trimmedPart.length > 10) && // Action items are usually descriptive
+            (trimmedPart.contains(" ")) && // Should contain spaces (multiple words)
+            !trimmedPart.startsWith("http") && // Not URLs
+            !trimmedPart.contains("...")  // Not typical progress messages
+        }
+        
+        val isActionItems = containsPipes && hasMultipleParts && partsLookLikeActions
+        
+        Log.d(TAG, "   📊 Analysis results:")
+        Log.d(TAG, "      🔗 Contains pipes: $containsPipes")
+        Log.d(TAG, "      📄 Multiple parts: $hasMultipleParts")
+        Log.d(TAG, "      ✅ Parts look like actions: $partsLookLikeActions")
+        Log.d(TAG, "      🎯 Final decision: ${if (isActionItems) "ACTION ITEMS" else "REGULAR CHUNK"}")
+        
+        return isActionItems
     }
 
     private fun fetchChatStreamFromServer(
@@ -660,39 +848,86 @@ class MainActivity : ComponentActivity() {
                         removeTypingIndicator() // Remove typing indicator before streaming
 
                         try {
+                            Log.i(TAG, "🌊 STARTING STREAM PROCESSING LOOP")
+                            Log.i(TAG, "   📖 Reading lines from server stream...")
+                            
+                            var lineCount = 0
                             while (withContext(Dispatchers.IO) { reader.readLine() }.also { line = it } != null) {
                                 val currentLine = line ?: ""
-                                Log.d(TAG, "Stream line: $currentLine")
+                                lineCount++
+                                
+                                // 📊 COMPREHENSIVE LINE LOGGING
+                                Log.i(TAG, "📥 STREAM LINE #$lineCount RECEIVED:")
+                                Log.i(TAG, "   🔗 Raw content: '$currentLine'")
+                                Log.i(TAG, "   📏 Length: ${currentLine.length}")
+                                Log.i(TAG, "   🔍 Is SSE format: ${currentLine.startsWith("data: ")}")
+                                Log.i(TAG, "   ⏰ Processing timestamp: ${System.currentTimeMillis()}")
                                 if (currentLine.startsWith("data: ")) {
                                     val actualData = currentLine.substringAfter("data: ").trim()
+                                    
+                                    // 📊 ENHANCED SERVER-SENT EVENT LOGGING
+                                    Log.i(TAG, "📡 SSE DATA RECEIVED:")
+                                    Log.i(TAG, "   🔗 Raw line: '$currentLine'")
+                                    Log.i(TAG, "   📦 Extracted data: '$actualData'")
+                                    Log.i(TAG, "   📏 Data length: ${actualData.length}")
+                                    
                                     if (actualData == "[DONE]") {
-                                        Log.d(TAG, "Stream finished by [DONE] signal.")
+                                        Log.i(TAG, "🏁 STREAM COMPLETION SIGNAL RECEIVED")
+                                        Log.i(TAG, "   ✅ Stream finished by [DONE] signal")
                                         break
                                     }
                                     if (actualData.isNotEmpty()) {
-                                        fullResponse.append(actualData)
-                                        // Just log the chunk, keep typing indicator simple
-                                        Log.d(TAG, "Received chunk: $actualData")
+                                        fullResponse.append(actualData).append("\n")
+                                        
+                                        Log.i(TAG, "🚀 PROCESSING CHUNK FOR DISPLAY:")
+                                        Log.i(TAG, "   📤 About to send to addStreamingChunk()")
+                                        Log.i(TAG, "   🎯 Chunk will be formatted as bullet point")
+                                        
+                                        // Display each chunk immediately on UI thread
+                                        withContext(Dispatchers.Main) {
+                                            addStreamingChunk(actualData)
+                                        }
+                                        
+                                        Log.i(TAG, "✅ CHUNK PROCESSING COMPLETE")
+                                        Log.i(TAG, "   📱 Chunk sent to UI thread for display")
+                                    } else {
+                                        Log.w(TAG, "⚠️  Empty actualData received, skipping display")
                                     }
                                 } else if (currentLine.isNotEmpty()) {
                                     // Handle plain text chunks if not using SSE "data:" prefix
+                                    Log.i(TAG, "📄 PLAIN TEXT CHUNK RECEIVED:")
+                                    Log.i(TAG, "   🔗 Raw line: '$currentLine'")
+                                    Log.i(TAG, "   📏 Line length: ${currentLine.length}")
+                                    
                                     fullResponse.append(currentLine).append("\n")
-                                    Log.d(TAG, "Received line: $currentLine")
+                                    
+                                    Log.i(TAG, "🚀 PROCESSING PLAIN TEXT CHUNK:")
+                                    Log.i(TAG, "   📤 About to send to addStreamingChunk()")
+                                    
+                                    // Display each line immediately on UI thread
+                                    withContext(Dispatchers.Main) {
+                                        addStreamingChunk(currentLine)
+                                    }
+                                    
+                                    Log.i(TAG, "✅ PLAIN TEXT CHUNK PROCESSED")
                                 }
                             }
-                            // Handle end of stream - add final response to conversation history
-                                Log.d(TAG, "Stream finished naturally.")
+                            
+                            // Handle end of stream - finalize streaming response
+                            Log.i(TAG, "🏁 STREAM PROCESSING COMPLETED")
+                            Log.i(TAG, "   📊 Total lines processed: $lineCount")
+                            Log.i(TAG, "   ✅ Stream finished naturally")
+                            Log.i(TAG, "   🔄 About to finalize streaming response...")
+                            
                                 withContext(Dispatchers.Main) {
-                                if (fullResponse.isNotEmpty()) {
-                                    addAssistantMessage(fullResponse.toString())
-                                } else {
-                                    addAssistantMessage("No response received from server.")
-                                }
+                                finalizeStreamingResponse()
                             }
+                            
+                            Log.i(TAG, "✅ STREAM FINALIZATION COMPLETE")
                         } catch (e: IOException) {
                             Log.e(TAG, "Error reading stream", e)
                             withContext(Dispatchers.Main) {
-                                removeTypingIndicator()
+                                finalizeStreamingResponse()
                                 addAssistantMessage("⚠️ Error reading stream: ${e.message}")
                             }
                         } finally {
@@ -705,7 +940,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         Log.e(TAG, "Error: Empty response body")
                         withContext(Dispatchers.Main) {
-                            removeTypingIndicator()
+                            finalizeStreamingResponse()
                             addAssistantMessage("⚠️ Error: Empty response body")
                         }
                     }
@@ -713,14 +948,14 @@ class MainActivity : ComponentActivity() {
                     val errorBody = response.errorBody()?.string() ?: "Unknown error"
                     Log.e(TAG, "Error: ${response.code()} - $errorBody")
                     withContext(Dispatchers.Main) {
-                        removeTypingIndicator()
+                        finalizeStreamingResponse()
                         addAssistantMessage("⚠️ Error: ${response.code()} - $errorBody")
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Exception in fetchChatStreamFromServer", e)
                 withContext(Dispatchers.Main) {
-                    removeTypingIndicator()
+                    finalizeStreamingResponse()
                     addAssistantMessage("⚠️ Exception: ${e.message}")
                 }
             }

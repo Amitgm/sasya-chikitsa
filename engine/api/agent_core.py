@@ -11,7 +11,7 @@ from pydantic import BaseModel
 # Configure logging
 logger = logging.getLogger(__name__)
 
-from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain.agents import AgentExecutor, create_tool_calling_agent, create_react_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -259,9 +259,28 @@ class AgentCore:
 
         # Create a wrapper tool that checks availability at runtime
         @tool("classify_leaf_safe", return_direct=True)
-        def classify_leaf_safe(image_handle: str, text: Optional[str] = None) -> str:
-            """SAFE VERSION: This tool will only work when there are actual images available. If no images are available, it will return an error message."""
-            logger.debug(f"classify_leaf_safe tool called with image_handle: '{image_handle}', text: '{text}'")
+        def classify_leaf_safe(tool_input: str) -> str:
+            """SAFE VERSION: Classify a plant leaf image using provided image handle. Input should be JSON with image_handle and optional text."""
+            logger.debug(f"classify_leaf_safe tool called with input: '{tool_input}'")
+            
+            # Parse the tool input (could be JSON string or direct parameters)
+            import json
+            try:
+                if isinstance(tool_input, str) and tool_input.startswith("{"):
+                    # JSON string input from ReAct agent
+                    parsed_input = json.loads(tool_input)
+                    image_handle = parsed_input.get("image_handle", "")
+                    text = parsed_input.get("text", "")
+                else:
+                    # Direct string input (fallback)
+                    image_handle = tool_input
+                    text = ""
+            except (json.JSONDecodeError, AttributeError):
+                # Fallback to treating it as direct image_handle
+                image_handle = str(tool_input)
+                text = ""
+                
+            logger.debug(f"Parsed: image_handle='{image_handle}', text='{text}'")
             
             # Check if there are any images available at all
             if not self.image_store:
@@ -272,24 +291,41 @@ class AgentCore:
                 return f"ERROR: Image handle '{image_handle}' not found. Available handles: {list(self.image_store.keys())}. Please ask the user to upload a new image."
             
             # If we get here, we have a valid image, so call the actual classification
-            return classify_leaf(image_handle, text)
+            logger.info(f"✅ classify_leaf_safe called successfully - proceeding with classification")
+            
+            # Call the inner function directly to avoid callback issues
+            image_b64 = self.image_store[image_handle]
+            logger.debug(f"Image found, proceeding with classification")
+            emitter = self._image_emitters.get(image_handle) or self._emit_ctx.get()
+            outputs = []
+            for chunk in self.model.predict_leaf_classification(image_b64, text or ""):
+                chunk_str = str(chunk).rstrip("\n")
+                outputs.append(chunk_str)
+                if emitter:
+                    try:
+                        emitter(chunk_str)
+                    except Exception:
+                        pass
+            return "\n".join(outputs)
 
         tools = [classify_leaf_safe]  # Use the safe version that checks availability
 
         system = (
-            "You are a helpful plant diagnostics assistant. "
-            "Hold a helpful, concise conversation. "
-            "CRITICAL RULE: You MUST check the system_context before calling any tools. "
-            "ONLY call the `classify_leaf_safe` tool when the system_context contains 'image_handle='. "
-            "If the system_context does NOT contain 'image_handle=', then you CANNOT and MUST NOT call the classify_leaf_safe tool. "
-            "Instead, respond conversationally and ask the user to provide an image if they want leaf analysis. "
-            "When an image_handle is present in system_context, use it to call the tool, then summarize results and ask follow-up questions. "
-            "NEVER call the classify_leaf_safe tool without a valid image_handle in system_context. "
-            "If system_context is empty or does not contain 'image_handle=', you have NO tools available. "
-            "IMPORTANT: You have access to the full conversation history. Use previous classification results and context to provide helpful responses even when no new image is provided. "
-            "You can reference previous diagnoses, answer follow-up questions about past results, and provide general plant care advice based on the conversation history. "
-            "CRITICAL: When no new image is provided (system_context is empty), you MUST use the conversation history to answer questions. Do NOT try to call any tools. "
-            "EXAMPLE: If someone asks 'What did we find about my plant?' and there's no new image, look at the conversation history for previous results and say something like 'Based on our previous analysis, we found...' "
+            "You are a helpful plant diagnostics assistant.\n\n"
+            
+            "🚨 TOOL CALLING RULES (CRITICAL):\n"
+            "1. IF system_context contains 'image_handle=' → MUST call classify_leaf_safe(image_handle, text)\n"
+            "2. IF system_context is empty or no 'image_handle=' → NO TOOL CALLS, respond conversationally\n\n"
+            
+            "When calling classify_leaf_safe:\n"
+            "- Use the image_handle from system_context\n" 
+            "- Pass user's text as 'text' parameter for context\n"
+            "- Process both image classification AND user's text question\n\n"
+            
+            "When NO tools available:\n"
+            "- Use conversation history to answer questions\n"
+            "- Reference previous diagnoses and results\n"
+            "- Provide general plant care advice\n"
             "\n\n🚨 CRITICAL RESPONSE FORMAT REQUIREMENT: "
             "EVERY SINGLE RESPONSE MUST BE STRUCTURED AS FOLLOWS - NO EXCEPTIONS: "
             "\n\nMAIN_ANSWER: <your complete response content here>"
@@ -320,28 +356,43 @@ class AgentCore:
             "="*80 + "\n"
         )
 
+        # Simplified prompt structure to avoid overwhelming the LLM
         prompt = ChatPromptTemplate.from_messages([
             ("system", system),
-            ("system", "System context: {system_context}\n\nIMPORTANT: Check the system_context above before deciding to use any tools. If system_context is empty or does not contain 'image_handle=', you have NO tools available and must respond conversationally. Use the conversation history to provide context-aware responses. The conversation history below contains all previous interactions and results - use it to answer questions when no new image is provided."),
-            ("system", format_enforcement + "REMINDER: Use MAIN_ANSWER: and ACTION_ITEMS: format for EVERY response!"),
+            ("system", "🔍 CURRENT REQUEST CONTEXT: {system_context}\n\n" + 
+             "CRITICAL TOOL DECISION LOGIC:\n" +
+             "• If system_context contains 'image_handle=' → CALL classify_leaf_safe tool with the image_handle\n" + 
+             "• If system_context is empty or no 'image_handle=' → NO TOOLS, respond conversationally\n\n" +
+             "DEBUG INFO: system_context = '{system_context}'"),
             ("system", "CONVERSATION STATE: {conversation_summary}"),
             ("system", "TOOL GUIDANCE: {tool_guidance}"),
             ("system", "AVAILABLE RESULTS: {available_results}"),
             MessagesPlaceholder(variable_name="chat_history"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
-            ("system", format_enforcement + "FINAL REMINDER: Your response MUST start with 'MAIN_ANSWER:' followed by 'ACTION_ITEMS:'"),
+            ("system", "RESPONSE FORMAT REMINDER: Start with MAIN_ANSWER: then ACTION_ITEMS:"),
             ("human", "{input}"),
         ])
 
         llm = create_llm()
         self.llm = llm
-        agent = create_tool_calling_agent(llm, tools, prompt)
+        
+        # Use ReAct agent for Ollama models, tool_calling_agent for OpenAI
+        api_key = os.getenv("OPENAI_API_KEY")
+        if api_key and ChatOpenAI is not None:
+            logger.info("🤖 Using OpenAI with tool_calling_agent")
+            agent = create_tool_calling_agent(llm, tools, prompt)
+        else:
+            logger.info("🦙 Using Ollama with custom hybrid agent (optimized for both cases)")
+            # Create a hybrid agent that handles both image and no-image scenarios efficiently
+            agent = self._create_hybrid_agent(llm, tools, system, format_enforcement)
+            
         executor = AgentExecutor(
             agent=agent,
             tools=tools,
             verbose=False,
-            max_iterations=int(os.getenv("AGENT_MAX_ITERATIONS", "2")),
+            max_iterations=int(os.getenv("AGENT_MAX_ITERATIONS", "5")),
             return_intermediate_steps=True,
+            handle_parsing_errors=True,  # Allow parsing errors to be passed back to agent
         )
 
         def get_history(cfg):
@@ -356,6 +407,275 @@ class AgentCore:
             input_messages_key="input",
             history_messages_key="chat_history",
         )
+
+    def _create_react_prompt(self, system: str):
+        """Create a ReAct-compatible prompt for Ollama models."""
+        from langchain_core.prompts import PromptTemplate
+        
+        # Create a simple, focused ReAct prompt without format conflicts
+        react_template = PromptTemplate(
+            input_variables=["input", "system_context", "tool_guidance", "conversation_summary", "available_results", "tools", "tool_names", "agent_scratchpad"],
+            template=(
+                "You are a helpful plant diagnostics assistant.\n\n"
+                "🔍 SYSTEM CONTEXT: {system_context}\n"
+                "📋 GUIDANCE: {tool_guidance}\n\n"
+                "💬 CONVERSATION STATE: {conversation_summary}\n"
+                "📊 AVAILABLE PREVIOUS RESULTS: {available_results}\n\n"
+                "DECISION LOGIC:\n"
+                "• If system_context contains 'image_handle=' → Use classify_leaf_safe tool\n"
+                "• If system_context is empty → NO tools, answer conversationally using previous results\n\n"
+                "AVAILABLE TOOLS:\n{tools}\n"
+                "TOOL NAMES: {tool_names}\n\n"
+                "FORMAT REQUIREMENT:\n\n"
+                "CASE 1 - WITH IMAGE (system_context has 'image_handle='):\n"
+                "Question: the input question\n"
+                "Thought: I see an image_handle, so I'll use the tool\n"
+                "Action: classify_leaf_safe\n"
+                "Action Input: {{\"image_handle\": \"handle_from_context\", \"text\": \"user's question\"}}\n"
+                "Observation: [tool result]\n"
+                "Thought: Now I can provide the diagnosis\n"
+                "Final Answer: [analysis based on tool result]\n\n"
+                "CASE 2 - NO IMAGE (system_context is empty):\n"
+                "Question: How do I fertilize my plants?\n"
+                "Thought: No image provided, I'll answer conversationally using plant knowledge\n"
+                "Final Answer: For most plants, fertilize during growing season with balanced fertilizer. Apply every 4-6 weeks in spring/summer. Check soil first - over-fertilizing can harm plants.\n\n"
+                "CRITICAL: When system_context is empty, NEVER use Action/Action Input - go straight to Final Answer!\n\n"
+                "Begin!\n\n"
+                "Question: {input}\n"
+                "Thought:{agent_scratchpad}"
+            )
+        )
+        
+        return react_template
+
+    def _create_hybrid_agent(self, llm, tools, system: str, format_enforcement: str):
+        """Create a custom hybrid agent using a much simpler, more direct approach."""
+        
+        # For now, let's fall back to an improved ReAct agent with very strict instructions
+        # to avoid format confusion, and implement a pre-check for no-image scenarios
+        
+        logger.info("🔧 Creating optimized ReAct agent with pre-filtering")
+        
+        # Create a simplified React prompt that's less likely to confuse the model
+        from langchain_core.prompts import PromptTemplate
+        simplified_react_prompt = PromptTemplate(
+            input_variables=["input", "system_context", "tool_guidance", "conversation_summary", "available_results", "tools", "tool_names", "agent_scratchpad"],
+            template=(
+                "You are a plant diagnostics assistant.\n\n"
+                "🔍 CHECK: {system_context}\n"
+                "📋 GUIDANCE: {tool_guidance}\n\n"
+                "SIMPLE RULE:\n"
+                "- Has 'image_handle=' in context? → Use classify_leaf_safe tool\n" 
+                "- No 'image_handle='? → Just answer the question directly\n\n"
+                "TOOLS: {tools}\n"
+                "TOOL NAMES: {tool_names}\n\n"
+                "EXAMPLES:\n\n"
+                "WITH IMAGE:\n"
+                "Question: Analyze this plant\n"
+                "Thought: I see image_handle in context, using tool\n"
+                "Action: classify_leaf_safe\n"
+                "Action Input: {{\"image_handle\": \"abc123\"}}\n"
+                "Observation: Plant is healthy\n"
+                "Thought: Got the result\n"
+                "Final Answer: Your plant looks healthy!\n\n"
+                "NO IMAGE:\n"
+                "Question: How do I water plants?\n" 
+                "Thought: No image_handle, answering directly\n"
+                "Final Answer: Water when soil feels dry, about 2-3 times per week.\n\n"
+                "Question: {input}\n"
+                "Thought:{agent_scratchpad}"
+            )
+        )
+        
+        return create_react_agent(llm, tools, simplified_react_prompt)
+
+    async def _handle_conversational_question(self, inputs: Dict, session_id: str):
+        """Handle conversational questions directly without ReAct format confusion."""
+        
+        user_input = inputs.get("input", "")
+        system_context = inputs.get("system_context", "")
+        
+        logger.debug(f"Handling conversational question: '{user_input}'")
+        
+        # Get conversation history for context
+        history = self.get_session_history(session_id)
+        messages = getattr(history, 'messages', [])
+        
+        # Build context from recent conversation
+        conversation_context = ""
+        if messages:
+            recent_messages = messages[-4:]  # Last 4 messages for context
+            for msg in recent_messages:
+                msg_type = getattr(msg, "type", "unknown")
+                content = getattr(msg, "content", str(msg))[:100]
+                conversation_context += f"{msg_type}: {content}\n"
+        
+        # Create a simple conversational prompt
+        conversational_prompt = (
+            "You are a helpful plant diagnostics assistant. Answer the user's question conversationally.\n\n"
+            f"Recent conversation:\n{conversation_context}\n\n"
+            f"User's question: {user_input}\n\n"
+            "Provide a helpful response about plant care, watering, fertilizing, or related topics. "
+            "Be concise but informative. If the question is empty or unclear, ask for clarification."
+        )
+        
+        logger.debug(f"Using conversational prompt: {conversational_prompt[:200]}...")
+        
+        # Call LLM directly for conversational response
+        try:
+            response = await asyncio.to_thread(self.llm.invoke, conversational_prompt)
+            response_text = response.content if hasattr(response, 'content') else str(response)
+            
+            logger.info(f"✅ Direct conversational response: '{response_text[:150]}...'")
+            
+            return {
+                "output": response_text,
+                "intermediate_steps": []  # No intermediate steps for direct responses
+            }
+        except Exception as e:
+            logger.error(f"Error in conversational response: {e}")
+            return {
+                "output": "I'd be happy to help with your plant care questions! Could you please rephrase your question?",
+                "intermediate_steps": []
+            }
+
+    async def _handle_image_classification(self, inputs: Dict, session_id: str):
+        """Handle image classification directly without ReAct format confusion."""
+        
+        user_input = inputs.get("input", "")
+        system_context = inputs.get("system_context", "")
+        
+        logger.debug(f"Handling image classification: input='{user_input}', context='{system_context}'")
+        
+        # Extract image handle from system context
+        import re
+        handle_match = re.search(r'image_handle=([^,\s]+)', system_context)
+        if not handle_match:
+            return {
+                "output": "ERROR: No valid image handle found in system context.",
+                "intermediate_steps": []
+            }
+        
+        image_handle = handle_match.group(1)
+        logger.info(f"🔍 Extracted image handle: {image_handle}")
+        
+        # Call the image classification logic directly (same as in classify_leaf_safe tool)
+        try:
+            logger.info(f"🔧 Processing image classification for handle: {image_handle}")
+            
+            # Check if there are any images available at all
+            if not self.image_store:
+                return {
+                    "output": "ERROR: No images are currently available for classification. Please ask the user to upload an image first.",
+                    "intermediate_steps": []
+                }
+            
+            # Check if the specific handle exists
+            if image_handle not in self.image_store:
+                return {
+                    "output": f"ERROR: Image handle '{image_handle}' not found. Available handles: {list(self.image_store.keys())}. Please ask the user to upload a new image.",
+                    "intermediate_steps": []
+                }
+            
+            # If we get here, we have a valid image, so do the actual classification
+            logger.info(f"✅ Starting image classification for handle: {image_handle}")
+            
+            # Call the image classification with async streaming delays
+            image_b64 = self.image_store[image_handle]
+            logger.debug(f"Image found, proceeding with async classification")
+            emitter = self._image_emitters.get(image_handle) or self._emit_ctx.get()
+            outputs = []
+            
+            # Stream chunks with proper async delays
+            classification_result = await self._stream_image_classification(image_b64, user_input or "", emitter, outputs)
+            logger.info(f"✅ Classification completed: {classification_result[:200]}...")
+            
+            # Create a proper agent result format
+            return {
+                "output": classification_result,
+                "intermediate_steps": [
+                    (f"Image classification completed for {image_handle}", classification_result)
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in direct image classification: {e}")
+            return {
+                "output": f"ERROR: Failed to classify image - {str(e)}",
+                "intermediate_steps": []
+            }
+
+    async def _stream_image_classification(self, image_b64: str, user_input: str, emitter, outputs: list) -> str:
+        """Handle image classification with proper async streaming delays."""
+        import asyncio
+        
+        try:
+            # Process image step by step with real async delays
+            logger.info("🔄 Starting streaming image classification...")
+            
+            # Step 1: Image preprocessing
+            chunk1 = "Resized image, normalizing and preprocessing..."
+            outputs.append(chunk1)
+            if emitter:
+                emitter(chunk1)
+                await asyncio.sleep(0.5)  # Shorter delay for testing
+            
+            # Step 2: Preparation
+            chunk2 = "Preparing image for neural network analysis..."
+            outputs.append(chunk2)
+            if emitter:
+                emitter(chunk2)
+                await asyncio.sleep(0.3)  # Shorter delay for testing
+            
+            # Step 3: CNN inference start
+            chunk3 = "Running CNN model inference..."
+            outputs.append(chunk3)
+            if emitter:
+                emitter(chunk3)
+                await asyncio.sleep(0.3)  # Shorter delay for testing
+            
+            # Step 4: Actual CNN prediction (synchronous operation)
+            logger.info("🧠 Running actual CNN prediction...")
+            prediction_chunks = []
+            for chunk in self.model.predict_leaf_classification(image_b64, user_input):
+                chunk_str = str(chunk).rstrip("\n")
+                prediction_chunks.append(chunk_str)
+            
+            # Step 5: Analysis
+            chunk4 = "Analyzing prediction results..."
+            outputs.append(chunk4)
+            if emitter:
+                emitter(chunk4)
+                await asyncio.sleep(0.3)  # Shorter delay for testing
+            
+            # Step 6: Finalization
+            chunk5 = "Finalizing diagnosis..."
+            outputs.append(chunk5)
+            if emitter:
+                emitter(chunk5)
+                await asyncio.sleep(0.3)  # Shorter delay for testing
+            
+            # Step 7: Final result from CNN prediction
+            if prediction_chunks:
+                final_chunk = prediction_chunks[-1]  # Get the final diagnosis
+            else:
+                final_chunk = "Diagnosis Complete! Class: unknown | Health Status: unknown | Confidence: 0.0"
+            
+            outputs.append(final_chunk)
+            if emitter:
+                emitter(final_chunk)
+                await asyncio.sleep(0.2)  # Short delay after final chunk
+            
+            logger.info("✅ Streaming image classification completed")
+            return "\n".join(outputs)
+            
+        except Exception as e:
+            error_msg = f"ERROR: Streaming classification failed - {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            outputs.append(error_msg)
+            if emitter:
+                emitter(error_msg)
+            return "\n".join(outputs)
 
     def _get_classification_history(self, session_id: str) -> str:
         history = self.get_history({"configurable": {"session_id": session_id}})
@@ -391,6 +711,14 @@ class AgentCore:
         logger.debug(f"has_image: {has_image}")
         logger.debug(f"inputs: {inputs}")
         
+        # PRE-FILTER: Handle both scenarios directly to avoid ReAct format confusion entirely
+        if not has_image:
+            logger.info("🚀 Using direct conversational response (bypassing ReAct agent)")
+            return await self._handle_conversational_question(inputs, session_id)
+        else:
+            logger.info("🔧 Using direct image classification (bypassing ReAct agent)")
+            return await self._handle_image_classification(inputs, session_id)
+        
         # Add tool guidance to help the agent understand what's available
         tool_guidance = self.get_tool_availability_guidance(system_context)
         inputs["tool_guidance"] = tool_guidance
@@ -406,13 +734,37 @@ class AgentCore:
         inputs["available_results"] = results_summary
         logger.debug(f"Available results summary: {results_summary}")
         
-        # Always use the same agent to preserve conversation history
-        # The system prompt and tool availability will handle preventing inappropriate tool calls
-        logger.debug("Using agent with conversation history preserved")
-        return await asyncio.to_thread(self.agent_with_history.invoke, inputs, config={
+        # Enhanced debug logging for tool calling issues
+        logger.info(f"🚨 ENHANCED DEBUG - TOOL CALLING STATUS:")
+        logger.info(f"   System context: '{system_context}'")
+        logger.info(f"   Has image handle: {has_image}")
+        logger.info(f"   Tool guidance sent to LLM: {tool_guidance}")
+        logger.info(f"   Expected behavior: {'SHOULD call classify_leaf_safe' if has_image else 'NO tool calls expected'}")
+        
+        # Use the agent for image classification
+        logger.debug("Using agent with conversation history preserved for image analysis")
+        
+        result = await asyncio.to_thread(self.agent_with_history.invoke, inputs, config={
             "callbacks": callbacks,
             "configurable": {"session_id": session_id}
         })
+
+        # Debug the agent result to see if tool was called
+        output_text = result.get("output", "") if isinstance(result, dict) else str(result)
+        intermediate_steps = result.get("intermediate_steps", []) if isinstance(result, dict) else []
+        
+        logger.info(f"🚨 AGENT EXECUTION RESULT DEBUG:")
+        logger.info(f"   Output text: '{output_text[:200]}...'")
+        logger.info(f"   Intermediate steps count: {len(intermediate_steps)}")
+        logger.info(f"   Tool was called: {len(intermediate_steps) > 0}")
+        
+        if intermediate_steps:
+            for i, step in enumerate(intermediate_steps):
+                logger.info(f"   Step {i+1}: {step}")
+        else:
+            logger.warning(f"   ⚠️  NO TOOL CALLS DETECTED - Expected classify_leaf_safe to be called!")
+            
+        return result
 
     def parse_structured_response(self, response_text: str) -> Dict[str, Union[str, List[str]]]:
         """Parse structured response into main answer and action items array."""
@@ -523,29 +875,54 @@ class AgentCore:
         logger.info(f"Forced structure result: {structured_response[:200]}...")
         return structured_response
 
-    async def summarize_response(self, final_text: str, session_id: str):
+    async def summarize_response(self, final_text: str, session_id: str, user_text: Optional[str] = None):
         classification_history = self._get_classification_history(session_id)
-        prompt = (
+        
+        # Base prompt for plant expert assistant
+        base_prompt = (
                 "You are a plant expert assistant. Use all previous plant leaf classification results in this session (provided below) "
                 "to answer the user's latest question. If an image is present, respond to the classification result as before. "
                 "If the image is not present, use the classification history (shown as 'Previous Results') to answer. "
-                "Always follow up with relevant action items.\n\n"
-                + "="*80 + "\n"
+            "Always follow up with relevant action items.\n\n"
+        )
+        
+        # Add user text prompt handling if provided
+        if user_text and user_text.strip():
+            base_prompt += (
+                "IMPORTANT: The user has provided both an image AND a text prompt. You must:\n"
+                "1. First analyze and explain the image classification results\n"
+                "2. Then address the user's specific text prompt/question\n"
+                "3. Provide a comprehensive response that covers both aspects\n"
+                "4. Make sure your response is cohesive and addresses the user's text prompt in context of the plant analysis\n\n"
+                f"USER'S SPECIFIC QUESTION/PROMPT: '{user_text}'\n\n"
+                "Your response should acknowledge both the image classification AND answer their specific question.\n\n"
+            )
+        
+        prompt = (
+                base_prompt +
+                "="*80 + "\n"
                 + "🚨🚨🚨 ABSOLUTE MANDATORY RESPONSE FORMAT 🚨🚨🚨\n"
                 + "="*80 + "\n"
                 + "YOUR RESPONSE MUST START WITH EXACTLY THESE WORDS:\n\n"
                 + "MAIN_ANSWER: [complete response here]\n"
                 + "ACTION_ITEMS: [actions separated by |]\n\n"
                 + "EXAMPLE CORRECT RESPONSE:\n"
-                + "MAIN_ANSWER: Based on our previous analysis, your plant requires regular watering and fertilization to thrive. For a personalized schedule, I need to know your plant type, local climate, and current care routine.\n"
-                + "ACTION_ITEMS: Tell me your plant type | Describe your local climate | Share current watering schedule | Get soil test recommendations\n\n"
+                + "MAIN_ANSWER: Based on the image classification, your plant shows signs of powdery mildew. Regarding your question about watering frequency, this fungal disease is often caused by overwatering combined with poor air circulation. I recommend reducing watering to twice weekly and improving ventilation.\n"
+                + "ACTION_ITEMS: Adjust watering schedule | Improve air circulation | Apply fungicide treatment | Monitor plant progress\n\n"
                 + "NEVER START WITH PLAIN TEXT! ALWAYS START WITH 'MAIN_ANSWER:'\n"
                 + "="*80 + "\n\n"
                 + "Previous Results:\n" +
                 str(classification_history) + "\n"
-                                             "Latest:\n" +
+                + "Latest Classification:\n" +
                 str(final_text) + "\n\n"
-                + "="*80 + "\n"
+        )
+        
+        # Add user text context if provided
+        if user_text and user_text.strip():
+            prompt += f"User's Additional Question: {user_text}\n\n"
+            
+        prompt += (
+                "="*80 + "\n"
                 + "REMEMBER: Start your response with 'MAIN_ANSWER:' followed by 'ACTION_ITEMS:'"
                 + "\n" + "="*80
         )
