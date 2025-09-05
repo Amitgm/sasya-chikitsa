@@ -2,6 +2,8 @@ import chromadb
 import chromadb.utils.embedding_functions as embedding_functions
 from langchain_huggingface import HuggingFaceEmbeddings
 
+
+
 # chroma_client = chromadb.HttpClient(host='0.0.0.0', port=8000)
 chroma_client = chromadb.HttpClient(host="localhost", port=8000)
 
@@ -10,7 +12,13 @@ print("ChromaDB client connected successfully.")
 
 print("Available collections:", chroma_client.list_collections())
 
-embedding = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large-instruct",model_kwargs={"device": "mps"})
+embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name="intfloat/multilingual-e5-large-instruct",
+    # If you have a GPU, you can specify the device, otherwise it defaults to CPU
+    # device="mps" 
+)
+
+# embedding = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large-instruct",model_kwargs={"device": "mps"})
 # embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
 #     model_name="intfloat/multilingual-e5-large-instruct"
 # )
@@ -20,7 +28,7 @@ embedding = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large-ins
 # Tomato
 try:
     collection_name = "Tomato"
-    collection = chroma_client.get_collection(name=collection_name, embedding_function=embedding)
+    collection = chroma_client.get_collection(name=collection_name, embedding_function=embedding_func)
     collection.count()
     print(f"Collection '{collection_name}' accessed successfully.")
     print(f"Number of items in the collection: {collection.count()}")
