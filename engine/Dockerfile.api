@@ -27,6 +27,7 @@ RUN pip install --no-cache-dir --upgrade pip -r requirements.txt
 # Stage 4: Copy your application code into the container
 # This copies everything from your 'engine' folder into the container's /app directory.
 # COPY . .
+# COPY ./.venv ./.venv
 COPY ./api ./api
 COPY ./ml ./ml
 COPY ./resources ./resources

@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request, Query
 from fastapi.responses import StreamingResponse
 from typing import Optional
 
-from engine.api.agent_core import AgentCore, ChatRequest
+from api.agent_core import AgentCore, ChatRequest
 
 # Configure logging
 logging.basicConfig(
