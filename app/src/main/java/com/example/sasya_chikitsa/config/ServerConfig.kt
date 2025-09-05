@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 
 /**
- * Server configuration management for the Plant Health Assistant app.
+ * Server configuration management for the Sasya Chikitsa app.
  * 
  * Common scenarios:
  * - Android Emulator: Use 10.0.2.2:8080 (maps to host's localhost:8080)

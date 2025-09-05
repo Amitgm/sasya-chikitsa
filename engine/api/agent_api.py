@@ -273,6 +273,11 @@ class AgentAPI:
                         chunk = await queue.get()
                         yield chunk
                         queue.task_done()
+                        
+                        # Add small delay between chunks to ensure real-time streaming
+                        # This respects the delays set in agent_core._stream_image_classification
+                        await asyncio.sleep(0.1)
+                        
                         if task.done() and queue.empty():
                             break
                 finally:
