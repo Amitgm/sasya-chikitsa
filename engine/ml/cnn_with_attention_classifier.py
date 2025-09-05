@@ -2,6 +2,7 @@ import base64
 import numpy as np
 import cv2
 import os
+import time
 from tensorflow.keras.models import load_model
 from keras.layers import Layer
 import tensorflow as tf
@@ -51,6 +52,7 @@ class CNNWithAttentionClassifier(Layer):
         resources_dir = os.path.join(parent_dir, "resources")
         binary_model_path = os.path.join(resources_dir, "leaf_classification_attention_cnn_model.h5")
         print(f"[INFO] Loading binary leaf presence model from {binary_model_path}...")
+        # return None
         return load_model(binary_model_path, custom_objects={'ReshapeLayer': ReshapeLayer})
 
 
@@ -86,21 +88,33 @@ class CNNWithAttentionClassifier(Layer):
 
         image_resized = cv2.resize(image, TARGET_IMG_SIZE)
         yield f"Resized image, normalizing and preprocessing...\n"
+        time.sleep(1.5)  # Allow user to see preprocessing step
 
         image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         is_success, img_buffer = cv2.imencode(".png", image_gray)
         # yield img_buffer.tobytes()
 
+        yield f"Preparing image for neural network analysis...\n"
+        time.sleep(1.0)  # Show preparation step
+
         image_preprocessed = image_resized.astype(np.float32) / 255.0
         image_for_prediction = np.expand_dims(image_preprocessed, axis=0)
 
+        yield f"Running CNN model inference...\n"
+        time.sleep(1.0)  # Brief pause before prediction
+
         prediction = self.loaded_model.predict(image_for_prediction)
-        yield f"Making prediction...{prediction}\n"
+        yield f"Analyzing prediction results...\n"
+        time.sleep(1.0)  # Give time to see analysis step
 
         predicted_class_index = np.argmax(prediction)
         predicted_class_label = MODEL_LABEL_CLASSES[predicted_class_index]
         prediction_probability = prediction[0][predicted_class_index]
         # Transform it to Kisan CC label
         kissan_cc_class_label = LABEL_MAPPINGS[predicted_class_label]
-        yield f"Prediction made. Original Class: {predicted_class_label}, Kisan CC Class: {kissan_cc_class_label}, Probability: {prediction_probability}\n"
+        
+        yield f"Finalizing diagnosis...\n"
+        time.sleep(1.0)  # Brief pause before final result
+        
+        yield f"Diagnosis Complete! Class: {predicted_class_label} | Health Status: {kissan_cc_class_label} | Confidence: {prediction_probability:.2f}\n"
         return

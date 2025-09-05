@@ -613,6 +613,95 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Variables for streaming response handling
+    private val streamingChunks = mutableListOf<String>()
+    private var isCurrentlyStreaming = false
+
+    /**
+     * Add a streaming chunk immediately to the UI while preserving conversation history
+     */
+    private fun addStreamingChunk(chunk: String) {
+        runOnUiThread {
+            Log.d(TAG, "Adding streaming chunk: $chunk")
+            
+            if (!isCurrentlyStreaming) {
+                // Starting new streaming - clear any typing indicator
+                removeTypingIndicator()
+                streamingChunks.clear()
+                isCurrentlyStreaming = true
+                
+                // Add assistant header for the streaming response
+                responseTextView.append("🤖 ")
+            }
+            
+            // Add the chunk to the display and track it
+            streamingChunks.add(chunk)
+            responseTextView.append("$chunk\n")
+            
+            // Auto-scroll to show new content
+            conversationScrollView.post {
+                conversationScrollView.smoothScrollTo(0, responseTextView.bottom)
+            }
+            
+            Log.d(TAG, "Streaming chunk added. Total chunks: ${streamingChunks.size}")
+        }
+    }
+
+    /**
+     * Finalize streaming response and add it to conversation history
+     */
+    private fun finalizeStreamingResponse() {
+        runOnUiThread {
+            if (isCurrentlyStreaming && streamingChunks.isNotEmpty()) {
+                Log.d(TAG, "Finalizing streaming response with ${streamingChunks.size} chunks")
+                
+                // Combine all chunks into the final message
+                val fullStreamingResponse = streamingChunks.joinToString("\n")
+                
+                // IMPORTANT: Don't call addAssistantMessage() as it overwrites the streaming display!
+                // Instead, add the streamed content directly to conversation history
+                
+                // Check if this is a structured response
+                val structuredResponse = parseStructuredResponse(fullStreamingResponse)
+                
+                if (structuredResponse != null) {
+                    // Handle structured response - format with action items
+                    val formattedMainAnswer = formatMessageWithCollapsibleJson(structuredResponse.mainAnswer)
+                    var assistantMsg = "🤖 $formattedMainAnswer"
+                    
+                    if (structuredResponse.actionItems.isNotEmpty()) {
+                        assistantMsg += "\n\n📋 Quick Actions:"
+                        structuredResponse.actionItems.forEach { actionItem ->
+                            assistantMsg += "\n• $actionItem"
+                        }
+                    }
+                    assistantMsg += "\n\n"
+                    
+                    // Create spannable and add to history
+                    val spannableMessage = SpannableString(assistantMsg)
+                    applyActionItemSpansToText(spannableMessage, structuredResponse.actionItems)
+                    conversationHistory.append(spannableMessage)
+                } else {
+                    // Handle regular response - just add streamed content to history
+                    val formattedMessage = formatMessageWithCollapsibleJson(fullStreamingResponse)
+                    val assistantMsg = "🤖 $formattedMessage\n\n"
+                    conversationHistory.append(assistantMsg)
+                }
+                
+                Log.d(TAG, "Streaming content added to conversation history. New length: ${conversationHistory.length}")
+                
+                // Clean up streaming state
+                streamingChunks.clear()
+                isCurrentlyStreaming = false
+                
+                Log.d(TAG, "Streaming response finalized successfully")
+            } else {
+                // Just remove typing indicator if no streaming happened
+                removeTypingIndicator()
+            }
+        }
+    }
+
 
 
     // Helper function to convert Uri to Base64 String
@@ -670,29 +759,32 @@ class MainActivity : ComponentActivity() {
                                         break
                                     }
                                     if (actualData.isNotEmpty()) {
-                                        fullResponse.append(actualData)
-                                        // Just log the chunk, keep typing indicator simple
-                                        Log.d(TAG, "Received chunk: $actualData")
+                                        fullResponse.append(actualData).append("\n")
+                                        // Display each chunk immediately on UI thread
+                                        withContext(Dispatchers.Main) {
+                                            addStreamingChunk(actualData)
+                                        }
+                                        Log.d(TAG, "Displayed chunk: $actualData")
                                     }
                                 } else if (currentLine.isNotEmpty()) {
                                     // Handle plain text chunks if not using SSE "data:" prefix
                                     fullResponse.append(currentLine).append("\n")
-                                    Log.d(TAG, "Received line: $currentLine")
+                                    // Display each line immediately on UI thread
+                                    withContext(Dispatchers.Main) {
+                                        addStreamingChunk(currentLine)
+                                    }
+                                    Log.d(TAG, "Displayed line: $currentLine")
                                 }
                             }
-                            // Handle end of stream - add final response to conversation history
+                            // Handle end of stream - finalize streaming response
                                 Log.d(TAG, "Stream finished naturally.")
                                 withContext(Dispatchers.Main) {
-                                if (fullResponse.isNotEmpty()) {
-                                    addAssistantMessage(fullResponse.toString())
-                                } else {
-                                    addAssistantMessage("No response received from server.")
-                                }
+                                finalizeStreamingResponse()
                             }
                         } catch (e: IOException) {
                             Log.e(TAG, "Error reading stream", e)
                             withContext(Dispatchers.Main) {
-                                removeTypingIndicator()
+                                finalizeStreamingResponse()
                                 addAssistantMessage("⚠️ Error reading stream: ${e.message}")
                             }
                         } finally {
@@ -705,7 +797,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         Log.e(TAG, "Error: Empty response body")
                         withContext(Dispatchers.Main) {
-                            removeTypingIndicator()
+                            finalizeStreamingResponse()
                             addAssistantMessage("⚠️ Error: Empty response body")
                         }
                     }
@@ -713,14 +805,14 @@ class MainActivity : ComponentActivity() {
                     val errorBody = response.errorBody()?.string() ?: "Unknown error"
                     Log.e(TAG, "Error: ${response.code()} - $errorBody")
                     withContext(Dispatchers.Main) {
-                        removeTypingIndicator()
+                        finalizeStreamingResponse()
                         addAssistantMessage("⚠️ Error: ${response.code()} - $errorBody")
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Exception in fetchChatStreamFromServer", e)
                 withContext(Dispatchers.Main) {
-                    removeTypingIndicator()
+                    finalizeStreamingResponse()
                     addAssistantMessage("⚠️ Exception: ${e.message}")
                 }
             }
