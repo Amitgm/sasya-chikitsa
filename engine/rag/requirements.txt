@@ -4,7 +4,9 @@ langchain_groq
 langchain
 langchain-community
 langchain_huggingface
-HuggingFaceEmbeddings
+# unable to load below library while running docker image build
+# HuggingFaceEmbeddings
+sentence-transformers
 transformers
 torch
 dotenv

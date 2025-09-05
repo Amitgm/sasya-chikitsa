@@ -1,0 +1,2 @@
+FROM ollama/ollama:latest
+COPY ./local_models /root/.ollama/models

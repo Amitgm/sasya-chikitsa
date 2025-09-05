@@ -228,3 +228,9 @@ backup
 
 mlartifacts
 
+# data files
+filtered_data.csv
+
+# ChromaDB database
+chroma_capstone_db_new.zip
+chroma_capstone_db_new

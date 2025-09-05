@@ -9,16 +9,32 @@ from pydantic import BaseModel
 import uvicorn
 import os
 
+print("Pointing to Ollama server...")
 
-llm = ChatOllama(
-            temperature=1, 
-            model_name="llama-3.1-8b",
-            max_tokens=600,
-            top_p=0.90,
-        #     frequency_penalty=1,
-        #     presence_penalty=1,
+ollama_host = os.getenv("OLLAMA_HOST")
+print(f"DEBUG: in rag_with_ollama_fastapi.py file OLLAMA_HOST={ollama_host}")
+
+if ollama_host:
+    llm = ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"), temperature=0.1, base_url=ollama_host)
+else:
+    print("OLLAMA_HOST not set, using default local settings")
+    # llm = ChatOllama(model="llama3.1:8b", temperature=0.1)
+    raise RuntimeError(
+        "No chat model configured. Set OPENAI_API_KEY (and optionally OPENAI_MODEL) or run Ollama and set OLLAMA_MODEL."
     )
 
+print(f"Using model: {llm.model_name}")
+
+# llm = ChatOllama(
+#             temperature=1, 
+#             model_name="llama-3.1-8b",
+#             max_tokens=600,
+#             top_p=0.90,
+#         #     frequency_penalty=1,
+#         #     presence_penalty=1,
+#     )
+
+print("Creating prompt template...")
 prompt_template = """
 You are an agricultural assistant specialized in answering questions about plant diseases.  
 Your task is to provide answers strictly based on the provided context when possible.  
@@ -51,8 +67,8 @@ PROMPT = PromptTemplate(
 )
 chain_type_kwargs = {"prompt": PROMPT}
 
-
-embedding = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large-instruct",model_kwargs={"device": "cuda"})
+print("Loading ChromaDB and setting up retriever...")
+embedding = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large-instruct",model_kwargs={"device": "auto"})
 chroma_db = Chroma(
     persist_directory="./chroma_capstone_db_new",
     embedding_function=embedding,
@@ -63,6 +79,7 @@ chroma_retriever = chroma_db.as_retriever(search_type="mmr", search_kwargs={"k":
 
 # chroma_retriever.get_relevant_documents(question)
 
+print("Setting up RetrievalQA chain...")
 h_retrieval_QA1 = RetrievalQA.from_chain_type(
     llm=llm,
     chain_type="stuff",
@@ -76,7 +93,6 @@ app = FastAPI()
 
 
 class Queryrequest(BaseModel):
-
     query:str
 
 @app.get("/")
@@ -86,11 +102,8 @@ def root():
 
 @app.post("/ask")
 def run_query(request:Queryrequest):
-
     answer = h_retrieval_QA1.invoke({"query": request.query})["result"]
-
     return answer
 
-# if __name__ == "__main__":
-
-#     uvicorn.run("rag_with_ollama:app", host="0.0.0.0", port=5050, reload=True)
+if __name__ == "__main__":
+    uvicorn.run("rag_with_ollama_fastapi:app", host="0.0.0.0", port=5050, reload=True)
