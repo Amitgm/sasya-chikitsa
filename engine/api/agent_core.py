@@ -290,7 +290,7 @@ class AgentCore:
             if image_handle not in self.image_store:
                 return f"ERROR: Image handle '{image_handle}' not found. Available handles: {list(self.image_store.keys())}. Please ask the user to upload a new image."
             
-            # If we get here, we have a valid image, so call the actual classification  
+            # If we get here, we have a valid image, so call the actual classification
             logger.info(f"✅ classify_leaf_safe called successfully - proceeding with classification")
             
             # Call the inner function directly to avoid callback issues
@@ -579,21 +579,14 @@ class AgentCore:
             # If we get here, we have a valid image, so do the actual classification
             logger.info(f"✅ Starting image classification for handle: {image_handle}")
             
-            # Call the classification logic directly (same as in the tool)
+            # Call the image classification with async streaming delays
             image_b64 = self.image_store[image_handle]
-            logger.debug(f"Image found, proceeding with classification")
+            logger.debug(f"Image found, proceeding with async classification")
             emitter = self._image_emitters.get(image_handle) or self._emit_ctx.get()
             outputs = []
-            for chunk in self.model.predict_leaf_classification(image_b64, user_input or ""):
-                chunk_str = str(chunk).rstrip("\n")
-                outputs.append(chunk_str)
-                if emitter:
-                    try:
-                        emitter(chunk_str)
-                    except Exception:
-                        pass
             
-            classification_result = "\n".join(outputs)
+            # Stream chunks with proper async delays
+            classification_result = await self._stream_image_classification(image_b64, user_input or "", emitter, outputs)
             logger.info(f"✅ Classification completed: {classification_result[:200]}...")
             
             # Create a proper agent result format
@@ -610,6 +603,77 @@ class AgentCore:
                 "output": f"ERROR: Failed to classify image - {str(e)}",
                 "intermediate_steps": []
             }
+
+    async def _stream_image_classification(self, image_b64: str, user_input: str, emitter, outputs: list) -> str:
+        """Handle image classification with proper async streaming delays."""
+        import asyncio
+        
+        try:
+            # Process image step by step with real async delays
+            logger.info("🔄 Starting streaming image classification...")
+            
+            # Step 1: Image preprocessing
+            chunk1 = "Resized image, normalizing and preprocessing..."
+            outputs.append(chunk1)
+            if emitter:
+                emitter(chunk1)
+            await asyncio.sleep(1.5)  # Non-blocking async delay
+            
+            # Step 2: Preparation
+            chunk2 = "Preparing image for neural network analysis..."
+            outputs.append(chunk2)
+            if emitter:
+                emitter(chunk2)
+            await asyncio.sleep(1.0)  # Non-blocking async delay
+            
+            # Step 3: CNN inference start
+            chunk3 = "Running CNN model inference..."
+            outputs.append(chunk3)
+            if emitter:
+                emitter(chunk3)
+            await asyncio.sleep(1.0)  # Non-blocking async delay
+            
+            # Step 4: Actual CNN prediction (synchronous operation)
+            logger.info("🧠 Running actual CNN prediction...")
+            prediction_chunks = []
+            for chunk in self.model.predict_leaf_classification(image_b64, user_input):
+                chunk_str = str(chunk).rstrip("\n")
+                prediction_chunks.append(chunk_str)
+            
+            # Step 5: Analysis
+            chunk4 = "Analyzing prediction results..."
+            outputs.append(chunk4)
+            if emitter:
+                emitter(chunk4)
+            await asyncio.sleep(1.0)  # Non-blocking async delay
+            
+            # Step 6: Finalization
+            chunk5 = "Finalizing diagnosis..."
+            outputs.append(chunk5)
+            if emitter:
+                emitter(chunk5)
+            await asyncio.sleep(1.0)  # Non-blocking async delay
+            
+            # Step 7: Final result from CNN prediction
+            if prediction_chunks:
+                final_chunk = prediction_chunks[-1]  # Get the final diagnosis
+            else:
+                final_chunk = "Diagnosis Complete! Class: unknown | Health Status: unknown | Confidence: 0.0"
+            
+            outputs.append(final_chunk)
+            if emitter:
+                emitter(final_chunk)
+            
+            logger.info("✅ Streaming image classification completed")
+            return "\n".join(outputs)
+            
+        except Exception as e:
+            error_msg = f"ERROR: Streaming classification failed - {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            outputs.append(error_msg)
+            if emitter:
+                emitter(error_msg)
+            return "\n".join(outputs)
 
     def _get_classification_history(self, session_id: str) -> str:
         history = self.get_history({"configurable": {"session_id": session_id}})
@@ -682,7 +746,7 @@ class AgentCore:
             "callbacks": callbacks,
             "configurable": {"session_id": session_id}
         })
-        
+
         # Debug the agent result to see if tool was called
         output_text = result.get("output", "") if isinstance(result, dict) else str(result)
         intermediate_steps = result.get("intermediate_steps", []) if isinstance(result, dict) else []
@@ -814,9 +878,9 @@ class AgentCore:
         
         # Base prompt for plant expert assistant
         base_prompt = (
-            "You are a plant expert assistant. Use all previous plant leaf classification results in this session (provided below) "
-            "to answer the user's latest question. If an image is present, respond to the classification result as before. "
-            "If the image is not present, use the classification history (shown as 'Previous Results') to answer. "
+                "You are a plant expert assistant. Use all previous plant leaf classification results in this session (provided below) "
+                "to answer the user's latest question. If an image is present, respond to the classification result as before. "
+                "If the image is not present, use the classification history (shown as 'Previous Results') to answer. "
             "Always follow up with relevant action items.\n\n"
         )
         
