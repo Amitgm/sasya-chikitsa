@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request, Query
 from fastapi.responses import StreamingResponse
 from typing import Optional
 
-from engine.api.agent_core import AgentCore, ChatRequest
+from api.agent_core import AgentCore, ChatRequest
 
 # Configure logging
 logging.basicConfig(
@@ -73,9 +73,9 @@ class AgentAPI:
                 # Pass the user's text to the summarize_response for processing along with image classification
                 summary = await self.agent_core.summarize_response(final_text, req.session_id or "default", req.message)
                 # Force structure as safety net in case LLM didn't follow format
-                structured_summary = self.agent_core.force_structure_response(summary)
+                structured_summary = self.agent_core.force_structure_response(summary, session_id, True)
                 # Parse structured response to separate main answer from action items
-                structured_response = self.agent_core.parse_structured_response(structured_summary)
+                structured_response = self.agent_core.parse_structured_response(structured_summary, session_id, True)
                 return {
                     "reply": structured_response.get("main_answer", structured_summary),
                     "action_items": structured_response.get("action_items", []),
@@ -83,9 +83,9 @@ class AgentAPI:
                 }
             else:
                 # Force structure as safety net in case LLM didn't follow format
-                structured_final_text = self.agent_core.force_structure_response(final_text)
+                structured_final_text = self.agent_core.force_structure_response(final_text, session_id, False)
                 # Parse structured response to separate main answer from action items
-                structured_response = self.agent_core.parse_structured_response(structured_final_text)
+                structured_response = self.agent_core.parse_structured_response(structured_final_text, session_id, False)
                 return {
                     "reply": structured_response.get("main_answer", structured_final_text),
                     "action_items": structured_response.get("action_items", []),

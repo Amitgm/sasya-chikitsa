@@ -1,4 +1,4 @@
-import pandas as pd
+# import pandas as pd
 from langchain_chroma import Chroma
 from langchain_core.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
