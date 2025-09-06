@@ -332,11 +332,26 @@ class MainActivity : ComponentActivity() {
             }
         }
         
-        // Add text if not empty (WhatsApp shows text even with images)
+        // Add header with icon and "Human" label
+        val headerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 8) // Space between header and content
+        }
+        
+        val headerText = TextView(this).apply {
+            text = "👤 Human"
+            textSize = 14f // Smaller header text
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        headerLayout.addView(headerText)
+        messageLayout.addView(headerLayout)
+        
+        // Add message text if not empty
         if (message.text.isNotEmpty()) {
             val textView = TextView(this).apply {
-                text = "👤 ${message.text}" // Add user emoji icon
-                textSize = 17f // Slightly larger like WhatsApp
+                text = message.text // Clean text without emoji (header has it)
+                textSize = 16f // Standard message text size
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
                 setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
                 typeface = android.graphics.Typeface.DEFAULT
@@ -413,10 +428,25 @@ class MainActivity : ComponentActivity() {
             if (message.text.contains("📋 Recommended Actions:")) {
                 createStreamingActionItemsView(messageLayout, message.text)
             } else {
+                // Add header with icon and "Sasya Chikitsa" label
+                val headerLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, 0, 0, 8) // Space between header and content
+                }
+                
+                val headerText = TextView(this).apply {
+                    text = "🤖 Sasya Chikitsa"
+                    textSize = 14f // Smaller header text
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+                headerLayout.addView(headerText)
+                messageLayout.addView(headerLayout)
+                
                 val textView = TextView(this).apply {
-                    // Add AI emoji icon for clear identification
+                    // Clean text without emoji prefix (header has it)
                     val displayText = message.text.removePrefix("🤖 ").trim()
-                    text = "🤖 $displayText"
+                    text = displayText
                     textSize = 16f // Consistent with user messages
                     setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                     setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
@@ -435,9 +465,24 @@ class MainActivity : ComponentActivity() {
     
     // Helper method to create structured assistant view with clickable action items (WhatsApp-style)
     private fun createStructuredAssistantView(messageLayout: LinearLayout, structuredResponse: StructuredResponse) {
+        // Add header with icon and "Sasya Chikitsa" label
+        val headerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 8) // Space between header and content
+        }
+        
+        val headerText = TextView(this).apply {
+            text = "🤖 Sasya Chikitsa"
+            textSize = 14f // Smaller header text
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        headerLayout.addView(headerText)
+        messageLayout.addView(headerLayout)
+        
         // Main answer text with WhatsApp styling
         val mainAnswerText = TextView(this).apply {
-            text = "🤖 ${structuredResponse.mainAnswer}" // Add AI emoji icon
+            text = structuredResponse.mainAnswer // Clean text (header has icon)
             textSize = 16f // Consistent with user messages
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
             setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
@@ -504,6 +549,20 @@ class MainActivity : ComponentActivity() {
     
     // Helper method to create streaming action items view (with checkmarks ✓)
     private fun createStreamingActionItemsView(messageLayout: LinearLayout, messageText: String) {
+        // Add header with icon and "Sasya Chikitsa" label
+        val headerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 8) // Space between header and content
+        }
+        
+        val headerText = TextView(this).apply {
+            text = "🤖 Sasya Chikitsa"
+            textSize = 14f // Smaller header text
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        headerLayout.addView(headerText)
+        messageLayout.addView(headerLayout)
         val lines = messageText.split("\n")
         var inActionSection = false
         val regularContent = mutableListOf<String>()
@@ -531,9 +590,9 @@ class MainActivity : ComponentActivity() {
         // Display regular content (bullet points)
         if (regularContent.isNotEmpty()) {
             val regularText = TextView(this).apply {
-                // Add AI emoji icon for clear identification
+                // Clean content without emoji prefix (header has it)
                 val cleanContent = regularContent.joinToString("\n").removePrefix("🤖 ").trim()
-                text = "🤖 $cleanContent"
+                text = cleanContent
                 textSize = 16f // Consistent with other messages
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                 setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
