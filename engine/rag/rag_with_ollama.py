@@ -1,18 +1,23 @@
 import pandas as pd
 from langchain_chroma import Chroma
-from langchain_core.prompts import ChatPromptTemplate,PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.chat_models import ChatOllama
 from fastapi import FastAPI
 from pydantic import BaseModel
-import uvicorn
+# import uvicorn
 import os
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
-
-class ollama_rag():
-
+class ollama_rag:
     # Creating the Prompt Template
 
     prompt_template = """
@@ -43,46 +48,59 @@ class ollama_rag():
         OUTPUT:
         """
 
-    def __init__(self,llm_name):
+    def __init__(self, llm_name,temperature=0.1):
+        logger.debug("Initializing ollama_rag class.")
+        ollama_host = os.getenv("OLLAMA_HOST")
+        logger.debug(f"OLLAMA_HOST={ollama_host}")
 
-        self.llm = ChatOllama(
-                    temperature=1, 
-                    # model_name="llama-3.1-8b",
-                    model_name = llm_name,
-                    max_tokens=600,
-                    top_p=0.90,
-                #     frequency_penalty=1,
-                #     presence_penalty=1,
+        if ollama_host:
+            self.llm = ChatOllama(
+                model=os.getenv("OLLAMA_MODEL", llm_name),
+                temperature=temperature,
+                base_url=ollama_host,
             )
-        
-        
-        self.PROMPT = PromptTemplate(
+            logger.info(f"Using Ollama model: {self.llm}")
+        else:
+            logger.info("OLLAMA_HOST not set.")
+            raise RuntimeError(
+                "No chat model configured. Set OLLAMA_HOST (and optionally OLLAMA_MODEL) or run Ollama and set OLLAMA_MODEL."
+            )
+        # self.llm = ChatOllama(
+        #     temperature=1,
+        #     # model_name="llama-3.1-8b",
+        #     model_name=llm_name,
+        #     max_tokens=600,
+        #     top_p=0.90,
+        #     #     frequency_penalty=1,
+        #     #     presence_penalty=1,
+        # )
 
-            template= self.prompt_template, input_variables=["context", "question"]
+        self.PROMPT = PromptTemplate(
+            template=self.prompt_template, input_variables=["context", "question"]
         )
 
         self.chain_type_kwargs = {"prompt": self.PROMPT}
 
-    def call_embeddings(self,embedding_model,collection_name):
-
-
+    def call_embeddings(self, embedding_model, collection_name):
         embedding = HuggingFaceEmbeddings(
             # model_name="intfloat/multilingual-e5-large-instruct",
-            model_name = embedding_model,
-            model_kwargs={"device": "cuda"})
-        
+            # model_kwargs={"device": "cuda"},
+            model_name=embedding_model
+        )
+
         self.chroma_db = Chroma(
             persist_directory="./chroma_capstone_db_new",
             embedding_function=embedding,
             # collection_name="Tomato"  # Specify which collection to load
-            collection_name = collection_name
+            collection_name=collection_name,
         )
 
-    def call_retriver(self):
-
+    def call_retriever(self):
         # creating the retriever
 
-        chroma_retriever = self.chroma_db.as_retriever(search_type="mmr", search_kwargs={"k": 6, "fetch_k":12})
+        chroma_retriever = self.chroma_db.as_retriever(
+            search_type="mmr", search_kwargs={"k": 6, "fetch_k": 12}
+        )
 
         # chroma_retriever.get_relevant_documents(question)
 
@@ -93,29 +111,29 @@ class ollama_rag():
             retriever=chroma_retriever,
             input_key="query",
             return_source_documents=True,
-            chain_type_kwargs=self.chain_type_kwargs
+            chain_type_kwargs=self.chain_type_kwargs,
         )
 
-    def run_query(self,query_request):
-
-        answer =self.h_retrieval_QA1.invoke({"query":query_request})["result"]
+    def run_query(self, query_request):
+        answer = self.h_retrieval_QA1.invoke({"query": query_request})["result"]
 
         return answer
 
 
+ollama_rag_object = ollama_rag(llm_name="llama-3.1-8b",temperature=1)
 
-ollama_rag_object = ollama_rag(llm_name="llama-3.1-8b")
+ollama_rag_object.call_embeddings(
+    embedding_model="intfloat/multilingual-e5-large-instruct", collection_name="Tomato"
+)
 
-ollama_rag_object.call_embeddings(embedding_model="intfloat/multilingual-e5-large-instruct",collection_name="Tomato")
+ollama_rag_object.call_retriever()
 
-ollama_rag_object.call_retriver()
-
-print("common prescriptions for Tomatos",ollama_rag_object.run_query(query_request="give me some common prescriptions for Tomatos"))
-
-
-
-
-
+print(
+    "common prescriptions for Tomatoes",
+    ollama_rag_object.run_query(
+        query_request="give me some common prescriptions for Tomatoes"
+    ),
+)
 
 
 # @app.post("/ask")
