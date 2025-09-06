@@ -67,9 +67,21 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var responseTextView: TextView // TextView to show stream output
     private lateinit var conversationScrollView: ScrollView // ScrollView for conversation
+    private lateinit var conversationContainer: LinearLayout // Container for individual messages
 
     private var selectedImageUri: Uri? = null
     private var conversationHistory = SpannableStringBuilder() // Store conversation history with formatting
+    
+    // Data class for conversation messages with images
+    data class ConversationMessage(
+        val text: String,
+        val isUser: Boolean,
+        val imageUri: Uri? = null,
+        val timestamp: Long = System.currentTimeMillis()
+    )
+    
+    // List to store conversation messages with images
+    private val conversationMessages = mutableListOf<ConversationMessage>()
 
     private val TAG = "MainActivity" // For logging
     
@@ -107,6 +119,7 @@ class MainActivity : ComponentActivity() {
         settingsBtn = findViewById(R.id.settingsBtn)
         responseTextView = findViewById(R.id.responseTextView)
         conversationScrollView = findViewById(R.id.conversationScrollView)
+        conversationContainer = findViewById(R.id.conversationContainer)
         
         // Update server status display
         updateServerStatusDisplay()
@@ -164,12 +177,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Add user message to conversation history
+            // Add user message to conversation history with image
             if (message.isNotEmpty()) {
-                addUserMessage(message, currentImageUri != null)
+                addUserMessageWithImage(message, currentImageUri)
 //                Toast.makeText(this, "Message sent: $message", Toast.LENGTH_SHORT).show()
             } else if (currentImageUri != null) {
-                addUserMessage("Image", true)
+                addUserMessageWithImage("Image", currentImageUri)
 //                Toast.makeText(this, "Image sent", Toast.LENGTH_SHORT).show()
             }
 
@@ -179,10 +192,10 @@ class MainActivity : ComponentActivity() {
             // Fetch the stream
             fetchChatStreamFromServer(message, imageBase64, sessionId)
             
-                // Clear the image after sending (one-time use) - silently
-                if (currentImageUri != null) {
-                    clearSelectedImage(showToast = false)
-                }
+            // Clear the upload preview but keep image in conversation history
+            if (currentImageUri != null) {
+                clearSelectedImage(showToast = false)
+            }
             } catch (e: Exception) {
                 Log.e(TAG, "Error in send button logic", e)
                 Toast.makeText(this, "Error sending message: ${e.message}", Toast.LENGTH_LONG).show()
@@ -223,6 +236,25 @@ class MainActivity : ComponentActivity() {
         
         updateConversationDisplay()
     }
+    
+    // Enhanced helper method to add user message with image support
+    private fun addUserMessageWithImage(message: String, imageUri: Uri?) {
+        // Add to new conversation messages list
+        val conversationMsg = ConversationMessage(
+            text = message,
+            isUser = true,
+            imageUri = imageUri
+        )
+        conversationMessages.add(conversationMsg)
+        
+        // Also add to legacy text-based history for compatibility
+        val imageIndicator = if (imageUri != null) " 📷" else ""
+        val userMsg = "👤 $message$imageIndicator\n\n"
+        conversationHistory.append(userMsg)
+        
+        Log.d(TAG, "Added user message with image. Total messages: ${conversationMessages.size}")
+        updateConversationDisplay()
+    }
 
     // Helper method to add assistant message to conversation
     private fun addAssistantMessage(message: String) {
@@ -234,15 +266,112 @@ class MainActivity : ComponentActivity() {
             addStructuredAssistantMessage(structuredResponse.mainAnswer, structuredResponse.actionItems)
         } else {
             // Handle regular unstructured response
-            val formattedMessage = formatMessageWithCollapsibleJson(message)
-            val assistantMsg = "🤖 $formattedMessage\n\n"
-            
-            Log.d(TAG, "Adding assistant message to history. Current length: ${conversationHistory.length}")
-            conversationHistory.append(assistantMsg)
-            Log.d(TAG, "After adding assistant message. New length: ${conversationHistory.length}")
-            
-            updateConversationDisplay()
+            addAssistantMessageToConversation(message)
         }
+    }
+    
+    // Enhanced helper method to add assistant message to new conversation structure
+    private fun addAssistantMessageToConversation(message: String) {
+        val formattedMessage = formatMessageWithCollapsibleJson(message)
+        
+        // Add to new conversation messages list
+        val conversationMsg = ConversationMessage(
+            text = formattedMessage,
+            isUser = false,
+            imageUri = null
+        )
+        conversationMessages.add(conversationMsg)
+        
+        // Also add to legacy text-based history for compatibility
+        val assistantMsg = "🤖 $formattedMessage\n\n"
+        conversationHistory.append(assistantMsg)
+        
+        Log.d(TAG, "Added assistant message. Total messages: ${conversationMessages.size}")
+        updateConversationDisplay()
+    }
+    
+    // Helper method to create a user message view with optional image
+    private fun createUserMessageView(message: ConversationMessage): View {
+        val messageCard = androidx.cardview.widget.CardView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, 16)
+            }
+            radius = 20f
+            cardElevation = 4f
+            setCardBackgroundColor(android.graphics.Color.parseColor("#E3F2FD"))
+        }
+        
+        val messageLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 16, 24, 16)
+        }
+        
+        // Add text
+        val textView = TextView(this).apply {
+            text = "👤 ${message.text}"
+            textSize = 16f
+            setTextColor(android.graphics.Color.parseColor("#1565C0"))
+            setLineSpacing(6f, 1f)
+        }
+        messageLayout.addView(textView)
+        
+        // Add image if present
+        if (message.imageUri != null) {
+            val imageView = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    400, // width in pixels
+                    300  // height in pixels
+                ).apply {
+                    setMargins(0, 16, 0, 0)
+                }
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setImageURI(message.imageUri)
+                
+                // Add border and corner radius
+                background = resources.getDrawable(R.drawable.modern_card_background, null)
+                setPadding(8, 8, 8, 8)
+            }
+            messageLayout.addView(imageView)
+        }
+        
+        messageCard.addView(messageLayout)
+        return messageCard
+    }
+    
+    // Helper method to create an assistant message view
+    private fun createAssistantMessageView(message: ConversationMessage): View {
+        val messageCard = androidx.cardview.widget.CardView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, 16)
+            }
+            radius = 20f
+            cardElevation = 4f
+            setCardBackgroundColor(android.graphics.Color.parseColor("#F3E5F5"))
+        }
+        
+        val messageLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 16, 24, 16)
+        }
+        
+        // Add text
+        val textView = TextView(this).apply {
+            text = "🤖 ${message.text}"
+            textSize = 16f
+            setTextColor(android.graphics.Color.parseColor("#2D3748"))
+            setLineSpacing(6f, 1f)
+            movementMethod = LinkMovementMethod.getInstance()
+        }
+        messageLayout.addView(textView)
+        
+        messageCard.addView(messageLayout)
+        return messageCard
     }
 
     // Data class to hold parsed structured response
@@ -308,7 +437,15 @@ class MainActivity : ComponentActivity() {
         val spannableMessage = SpannableString(assistantMsg)
         applyActionItemSpansToText(spannableMessage, actionItems)
         
-        // Append to conversation history
+        // Add to new conversation messages list (convert SpannableString to String)
+        val conversationMsg = ConversationMessage(
+            text = spannableMessage.toString(),
+            isUser = false,
+            imageUri = null
+        )
+        conversationMessages.add(conversationMsg)
+        
+        // Append to legacy conversation history
         conversationHistory.append(spannableMessage)
         Log.d(TAG, "After adding structured assistant message. New length: ${conversationHistory.length}")
         
@@ -562,13 +699,33 @@ class MainActivity : ComponentActivity() {
     // Helper method to update conversation display and scroll to bottom
     private fun updateConversationDisplay() {
         runOnUiThread {
-            Log.d(TAG, "Updating conversation display. History length: ${conversationHistory.length}")
+            Log.d(TAG, "Updating conversation display. Messages: ${conversationMessages.size}")
             
-            // Set the spannable text directly to preserve existing formatting and spans
-            responseTextView.text = conversationHistory
-            responseTextView.movementMethod = LinkMovementMethod.getInstance()
+            // Clear existing conversation views (except welcome message)
+            if (conversationContainer.childCount > 1) {
+                conversationContainer.removeViews(1, conversationContainer.childCount - 1)
+            }
             
-            Log.d(TAG, "Display updated. TextView length: ${responseTextView.text.length}")
+            // Add each conversation message as a separate view
+            for (message in conversationMessages) {
+                val messageView = if (message.isUser) {
+                    createUserMessageView(message)
+                } else {
+                    createAssistantMessageView(message)
+                }
+                conversationContainer.addView(messageView)
+            }
+            
+            // Only update legacy TextView if NOT currently streaming to avoid wiping streaming content
+            if (!isCurrentlyStreaming) {
+                responseTextView.text = conversationHistory
+                responseTextView.movementMethod = LinkMovementMethod.getInstance()
+                Log.d(TAG, "Updated legacy TextView (not streaming)")
+            } else {
+                Log.d(TAG, "Skipping TextView update - streaming in progress")
+            }
+            
+            Log.d(TAG, "Display updated. Message views: ${conversationMessages.size}")
             
             // Force layout update
             responseTextView.requestLayout()
@@ -735,7 +892,15 @@ class MainActivity : ComponentActivity() {
                     }
                     assistantMsg += "\n\n"
                     
-                    // Create spannable and add to history
+                    // Add to new conversation messages list
+                    val conversationMsg = ConversationMessage(
+                        text = assistantMsg.removePrefix("🤖 "), // Remove emoji for clean display
+                        isUser = false,
+                        imageUri = null
+                    )
+                    conversationMessages.add(conversationMsg)
+                    
+                    // Create spannable and add to legacy history
                     val spannableMessage = SpannableString(assistantMsg)
                     applyActionItemSpansToText(spannableMessage, structuredResponse.actionItems)
                     conversationHistory.append(spannableMessage)
@@ -743,6 +908,16 @@ class MainActivity : ComponentActivity() {
                     // Handle regular response - just add streamed content to history
                     val formattedMessage = formatMessageWithCollapsibleJson(fullStreamingResponse)
                     val assistantMsg = "🤖 $formattedMessage\n\n"
+                    
+                    // Add to new conversation messages list
+                    val conversationMsg = ConversationMessage(
+                        text = formattedMessage,
+                        isUser = false,
+                        imageUri = null
+                    )
+                    conversationMessages.add(conversationMsg)
+                    
+                    // Add to legacy history
                     conversationHistory.append(assistantMsg)
                 }
                 
@@ -753,10 +928,14 @@ class MainActivity : ComponentActivity() {
                 streamingChunks.clear()
                 isCurrentlyStreaming = false
                 
+                // Now update conversation display with the new message
+                updateConversationDisplay()
+                
                 Log.i(TAG, "🧹 STREAMING STATE CLEANUP COMPLETE:")
                 Log.i(TAG, "   ✅ Processed ${totalChunks} chunks total")
                 Log.i(TAG, "   🔄 Streaming state reset")
                 Log.i(TAG, "   💾 Content added to conversation history")
+                Log.i(TAG, "   📱 Conversation display updated with new message")
                 Log.i(TAG, "   🎯 Bullet point formatting preserved")
                 Log.i(TAG, "✅ STREAMING RESPONSE FINALIZED SUCCESSFULLY")
             } else {
