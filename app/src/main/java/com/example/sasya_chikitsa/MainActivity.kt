@@ -301,7 +301,7 @@ class MainActivity : ComponentActivity() {
             }
             radius = 20f
             cardElevation = 4f
-            setCardBackgroundColor(android.graphics.Color.parseColor("#E3F2FD"))
+            setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.user_message_bg))
         }
         
         val messageLayout = LinearLayout(this).apply {
@@ -313,7 +313,7 @@ class MainActivity : ComponentActivity() {
         val textView = TextView(this).apply {
             text = "👤 ${message.text}"
             textSize = 16f
-            setTextColor(android.graphics.Color.parseColor("#1565C0"))
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
             setLineSpacing(6f, 1f)
         }
         messageLayout.addView(textView)
@@ -352,7 +352,7 @@ class MainActivity : ComponentActivity() {
             }
             radius = 20f
             cardElevation = 4f
-            setCardBackgroundColor(android.graphics.Color.parseColor("#F3E5F5"))
+            setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_message_bg))
         }
         
         val messageLayout = LinearLayout(this).apply {
@@ -377,7 +377,7 @@ class MainActivity : ComponentActivity() {
                     val displayText = if (message.text.startsWith("🤖")) message.text else "🤖 ${message.text}"
                     text = displayText
                     textSize = 16f
-                    setTextColor(android.graphics.Color.parseColor("#2D3748"))
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                     setLineSpacing(6f, 1f)
                     movementMethod = LinkMovementMethod.getInstance()
                 }
@@ -395,7 +395,7 @@ class MainActivity : ComponentActivity() {
         val mainAnswerText = TextView(this).apply {
             text = "🤖 ${structuredResponse.mainAnswer}"
             textSize = 16f
-            setTextColor(android.graphics.Color.parseColor("#2D3748"))
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
             setLineSpacing(6f, 1f)
         }
         messageLayout.addView(mainAnswerText)
@@ -413,7 +413,7 @@ class MainActivity : ComponentActivity() {
             val actionHeader = TextView(this).apply {
                 text = "📋 Quick Actions:"
                 textSize = 16f
-                setTextColor(android.graphics.Color.parseColor("#2D3748"))
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setPadding(0, 8, 0, 8)
             }
@@ -439,7 +439,7 @@ class MainActivity : ComponentActivity() {
                     // Apply styling to make it look clickable
                     spannableString.setSpan(clickableSpan, 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     spannableString.setSpan(
-                        ForegroundColorSpan(android.graphics.Color.parseColor("#1565C0")), 
+                        ForegroundColorSpan(ContextCompat.getColor(this@MainActivity, R.color.action_item_color)), 
                         0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                     )
                     spannableString.setSpan(UnderlineSpan(), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -487,7 +487,7 @@ class MainActivity : ComponentActivity() {
             val regularText = TextView(this).apply {
                 text = "🤖 ${regularContent.joinToString("\n")}"
                 textSize = 16f
-                setTextColor(android.graphics.Color.parseColor("#2D3748"))
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                 setLineSpacing(6f, 1f)
             }
             messageLayout.addView(regularText)
@@ -506,7 +506,7 @@ class MainActivity : ComponentActivity() {
             val actionHeader = TextView(this).apply {
                 text = "📋 Recommended Actions:"
                 textSize = 16f
-                setTextColor(android.graphics.Color.parseColor("#2D3748"))
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setPadding(0, 8, 0, 8)
             }
@@ -532,7 +532,7 @@ class MainActivity : ComponentActivity() {
                     // Apply styling to make it look clickable
                     spannableString.setSpan(clickableSpan, 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     spannableString.setSpan(
-                        ForegroundColorSpan(android.graphics.Color.parseColor("#1565C0")), 
+                        ForegroundColorSpan(ContextCompat.getColor(this@MainActivity, R.color.action_item_color)), 
                         0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                     )
                     spannableString.setSpan(UnderlineSpan(), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
