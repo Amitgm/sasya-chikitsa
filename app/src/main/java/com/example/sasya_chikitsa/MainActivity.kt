@@ -360,18 +360,193 @@ class MainActivity : ComponentActivity() {
             setPadding(24, 16, 24, 16)
         }
         
-        // Add text
-        val textView = TextView(this).apply {
-            text = "🤖 ${message.text}"
-            textSize = 16f
-            setTextColor(android.graphics.Color.parseColor("#2D3748"))
-            setLineSpacing(6f, 1f)
-            movementMethod = LinkMovementMethod.getInstance()
+        // Check if this is a structured response with action items
+        val structuredResponse = parseStructuredResponse("🤖 ${message.text}")
+        
+        if (structuredResponse != null) {
+            // Handle structured response with separate formatting for main answer and action items
+            createStructuredAssistantView(messageLayout, structuredResponse)
+        } else {
+            // Handle regular response with bullet point formatting preserved
+            // Check if this has streaming action items (with checkmarks ✓)
+            if (message.text.contains("📋 Recommended Actions:")) {
+                createStreamingActionItemsView(messageLayout, message.text)
+            } else {
+                val textView = TextView(this).apply {
+                    // Add 🤖 prefix if not already present
+                    val displayText = if (message.text.startsWith("🤖")) message.text else "🤖 ${message.text}"
+                    text = displayText
+                    textSize = 16f
+                    setTextColor(android.graphics.Color.parseColor("#2D3748"))
+                    setLineSpacing(6f, 1f)
+                    movementMethod = LinkMovementMethod.getInstance()
+                }
+                messageLayout.addView(textView)
+            }
         }
-        messageLayout.addView(textView)
         
         messageCard.addView(messageLayout)
         return messageCard
+    }
+    
+    // Helper method to create structured assistant view with clickable action items
+    private fun createStructuredAssistantView(messageLayout: LinearLayout, structuredResponse: StructuredResponse) {
+        // Main answer text
+        val mainAnswerText = TextView(this).apply {
+            text = "🤖 ${structuredResponse.mainAnswer}"
+            textSize = 16f
+            setTextColor(android.graphics.Color.parseColor("#2D3748"))
+            setLineSpacing(6f, 1f)
+        }
+        messageLayout.addView(mainAnswerText)
+        
+        // Action items section if they exist
+        if (structuredResponse.actionItems.isNotEmpty()) {
+            // Add some spacing
+            val spacing = TextView(this).apply {
+                text = ""
+                textSize = 8f
+            }
+            messageLayout.addView(spacing)
+            
+            // Action items header
+            val actionHeader = TextView(this).apply {
+                text = "📋 Quick Actions:"
+                textSize = 16f
+                setTextColor(android.graphics.Color.parseColor("#2D3748"))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(0, 8, 0, 8)
+            }
+            messageLayout.addView(actionHeader)
+            
+            // Create clickable action items
+            structuredResponse.actionItems.forEach { actionItem ->
+                val actionTextView = TextView(this).apply {
+                    val actionText = "• $actionItem"
+                    val spannableString = SpannableString(actionText)
+                    
+                    // Make the entire action item clickable
+                    val clickableSpan = object : ClickableSpan() {
+                        override fun onClick(view: View) {
+                            messageInput.setText(actionItem.trim())
+                            conversationScrollView.post {
+                                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                            }
+                            Toast.makeText(this@MainActivity, "Action added to input", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                    // Apply styling to make it look clickable
+                    spannableString.setSpan(clickableSpan, 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(
+                        ForegroundColorSpan(android.graphics.Color.parseColor("#1565C0")), 
+                        0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    spannableString.setSpan(UnderlineSpan(), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(StyleSpan(android.graphics.Typeface.BOLD), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    
+                    text = spannableString
+                    textSize = 15f
+                    setLineSpacing(4f, 1f)
+                    movementMethod = LinkMovementMethod.getInstance()
+                    setPadding(16, 4, 0, 4)
+                }
+                messageLayout.addView(actionTextView)
+            }
+        }
+    }
+    
+    // Helper method to create streaming action items view (with checkmarks ✓)
+    private fun createStreamingActionItemsView(messageLayout: LinearLayout, messageText: String) {
+        val lines = messageText.split("\n")
+        var inActionSection = false
+        val regularContent = mutableListOf<String>()
+        val actionItems = mutableListOf<String>()
+        
+        // Parse the message to separate regular content from action items
+        for (line in lines) {
+            when {
+                line.contains("📋 Recommended Actions:") -> {
+                    inActionSection = true
+                }
+                inActionSection && line.trim().startsWith("✓") -> {
+                    // Extract action item (remove the checkmark and whitespace)
+                    val actionText = line.trim().removePrefix("✓").trim()
+                    if (actionText.isNotEmpty()) {
+                        actionItems.add(actionText)
+                    }
+                }
+                !inActionSection && line.trim().isNotEmpty() -> {
+                    regularContent.add(line)
+                }
+            }
+        }
+        
+        // Display regular content (bullet points)
+        if (regularContent.isNotEmpty()) {
+            val regularText = TextView(this).apply {
+                text = "🤖 ${regularContent.joinToString("\n")}"
+                textSize = 16f
+                setTextColor(android.graphics.Color.parseColor("#2D3748"))
+                setLineSpacing(6f, 1f)
+            }
+            messageLayout.addView(regularText)
+        }
+        
+        // Display action items section if they exist
+        if (actionItems.isNotEmpty()) {
+            // Add spacing
+            val spacing = TextView(this).apply {
+                text = ""
+                textSize = 8f
+            }
+            messageLayout.addView(spacing)
+            
+            // Action items header
+            val actionHeader = TextView(this).apply {
+                text = "📋 Recommended Actions:"
+                textSize = 16f
+                setTextColor(android.graphics.Color.parseColor("#2D3748"))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(0, 8, 0, 8)
+            }
+            messageLayout.addView(actionHeader)
+            
+            // Create clickable action items with checkmarks
+            actionItems.forEach { actionItem ->
+                val actionTextView = TextView(this).apply {
+                    val actionText = "  ✓ $actionItem"
+                    val spannableString = SpannableString(actionText)
+                    
+                    // Make the action item clickable (skip the checkmark part)
+                    val clickableSpan = object : ClickableSpan() {
+                        override fun onClick(view: View) {
+                            messageInput.setText(actionItem.trim())
+                            conversationScrollView.post {
+                                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                            }
+                            Toast.makeText(this@MainActivity, "Action added to input", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                    // Apply styling to make it look clickable
+                    spannableString.setSpan(clickableSpan, 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(
+                        ForegroundColorSpan(android.graphics.Color.parseColor("#1565C0")), 
+                        0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    spannableString.setSpan(UnderlineSpan(), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(StyleSpan(android.graphics.Typeface.BOLD), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    
+                    text = spannableString
+                    textSize = 15f
+                    setLineSpacing(4f, 1f)
+                    movementMethod = LinkMovementMethod.getInstance()
+                    setPadding(16, 4, 0, 4)
+                }
+                messageLayout.addView(actionTextView)
+            }
+        }
     }
 
     // Data class to hold parsed structured response
@@ -850,7 +1025,43 @@ class MainActivity : ComponentActivity() {
             Log.i(TAG, "   " + "=".repeat(50))
         }
     }
-
+    
+    // Helper method to reconstruct streaming bullet format from collected chunks
+    private fun reconstructStreamedBulletFormat(chunks: List<String>): String {
+        val result = StringBuilder()
+        var hasActionItems = false
+        
+        // First, check if we have any pipe-separated action items
+        val actionItemChunks = chunks.filter { isPipeSeperatedActionItems(it) }
+        val regularChunks = chunks.filter { !isPipeSeperatedActionItems(it) }
+        
+        // Add regular bullet points first
+        if (regularChunks.isNotEmpty()) {
+            regularChunks.forEach { chunk ->
+                result.append("  • $chunk\n")
+            }
+        }
+        
+        // Add action items with special formatting
+        if (actionItemChunks.isNotEmpty()) {
+            if (result.isNotEmpty()) {
+                result.append("\n") // Add spacing before action items
+            }
+            result.append("📋 Recommended Actions:\n")
+            
+            actionItemChunks.forEach { chunk ->
+                val actionItems = chunk.split("|").map { it.trim() }.filter { it.isNotEmpty() }
+                actionItems.forEach { actionItem ->
+                    result.append("  ✓ $actionItem\n")
+                }
+            }
+            hasActionItems = true
+        }
+        
+        Log.d(TAG, "Reconstructed streamed format with ${regularChunks.size} bullets and ${actionItemChunks.size} action item chunks")
+        return result.toString().trimEnd()
+    }
+    
     /**
      * Finalize streaming response and add it to conversation history
      */
@@ -905,13 +1116,16 @@ class MainActivity : ComponentActivity() {
                     applyActionItemSpansToText(spannableMessage, structuredResponse.actionItems)
                     conversationHistory.append(spannableMessage)
                 } else {
-                    // Handle regular response - just add streamed content to history
+                    // Handle regular response - preserve streaming bullet formatting
                     val formattedMessage = formatMessageWithCollapsibleJson(fullStreamingResponse)
-                    val assistantMsg = "🤖 $formattedMessage\n\n"
                     
-                    // Add to new conversation messages list
+                    // Reconstruct the streamed content with proper bullet formatting
+                    val streamedContent = reconstructStreamedBulletFormat(streamingChunks)
+                    val assistantMsg = "🤖 $streamedContent\n\n"
+                    
+                    // Add to new conversation messages list (use the formatted streamed content)
                     val conversationMsg = ConversationMessage(
-                        text = formattedMessage,
+                        text = streamedContent, // This preserves the bullet points and checkmarks
                         isUser = false,
                         imageUri = null
                     )
