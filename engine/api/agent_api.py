@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request, Query
 from fastapi.responses import StreamingResponse
 from typing import Optional
 
-from engine.api.agent_core import AgentCore, ChatRequest
+from api.agent_core import AgentCore, ChatRequest
 
 # Configure logging
 logging.basicConfig(
@@ -70,10 +70,27 @@ class AgentAPI:
             logger.debug(f"Should summarize response: {should_summarize}")
             
             if should_summarize:
-                summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
-                return {"reply": summary}
+                # Pass the user's text to the summarize_response for processing along with image classification
+                summary = await self.agent_core.summarize_response(final_text, req.session_id or "default", req.message)
+                # Force structure as safety net in case LLM didn't follow format
+                structured_summary = self.agent_core.force_structure_response(summary)
+                # Parse structured response to separate main answer from action items
+                structured_response = self.agent_core.parse_structured_response(structured_summary)
+                return {
+                    "reply": structured_response.get("main_answer", structured_summary),
+                    "action_items": structured_response.get("action_items", []),
+                    "has_structured_format": bool(structured_response.get("action_items"))
+                }
             else:
-                return {"reply": final_text}
+                # Force structure as safety net in case LLM didn't follow format
+                structured_final_text = self.agent_core.force_structure_response(final_text)
+                # Parse structured response to separate main answer from action items
+                structured_response = self.agent_core.parse_structured_response(structured_final_text)
+                return {
+                    "reply": structured_response.get("main_answer", structured_final_text),
+                    "action_items": structured_response.get("action_items", []),
+                    "has_structured_format": bool(structured_response.get("action_items"))
+                }
 
         @self.app.get("/session-history")
         async def get_default_session_history():
@@ -206,10 +223,39 @@ class AgentAPI:
                     
                     if should_summarize:
                         emit("Summarizing response...")
-                        summary = await self.agent_core.summarize_response(final_text, req.session_id or "default")
-                        emit(summary)
+                        # Pass the user's text to the summarize_response for processing along with image classification
+                        summary = await self.agent_core.summarize_response(final_text, req.session_id or "default", req.message)
+                        # Force structure as safety net in case LLM didn't follow format
+                        structured_summary = self.agent_core.force_structure_response(summary)
+                        # Parse structured response for streaming
+                        structured_response = self.agent_core.parse_structured_response(structured_summary)
+                        
+                        # Stream main answer first
+                        main_answer = structured_response.get("main_answer", structured_summary)
+                        if main_answer:
+                            emit(main_answer)
+                        
+                        # Stream action items separately if they exist
+                        action_items = structured_response.get("action_items", [])
+                        if action_items:
+                            action_items_text = " | ".join(action_items)
+                            emit("\n\n" + action_items_text)
                     else:
-                        emit(final_text)
+                        # Force structure as safety net in case LLM didn't follow format
+                        structured_final_text = self.agent_core.force_structure_response(final_text)
+                        # Parse structured response for streaming
+                        structured_response = self.agent_core.parse_structured_response(structured_final_text)
+                        
+                        # Stream main answer first
+                        main_answer = structured_response.get("main_answer", structured_final_text)
+                        if main_answer:
+                            emit(main_answer)
+                        
+                        # Stream action items separately if they exist
+                        action_items = structured_response.get("action_items", [])
+                        if action_items:
+                            action_items_text = " | ".join(action_items)
+                            emit("\n\n" + action_items_text)
                 finally:
                     self.agent_core._emit_ctx.reset(token)
                     if handle and handle in self.agent_core._image_emitters:
@@ -227,6 +273,11 @@ class AgentAPI:
                         chunk = await queue.get()
                         yield chunk
                         queue.task_done()
+                        
+                        # Add small delay between chunks to ensure real-time streaming
+                        # This respects the delays set in agent_core._stream_image_classification
+                        await asyncio.sleep(0.1)
+                        
                         if task.done() and queue.empty():
                             break
                 finally:

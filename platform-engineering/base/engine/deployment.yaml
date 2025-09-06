@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: engine
-          image: 'quay.io/rajivranjan/engine:v2'
+          image: 'quay.io/rajivranjan/engine:v3'
           ports:
             - containerPort: 8080
               protocol: TCP
