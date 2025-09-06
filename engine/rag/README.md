@@ -38,3 +38,12 @@ This repository contains notebooks for creating embeddings, building a vector da
 - Install dependencies:  
   ```bash
   pip install -r requirements.txt
+
+
+
+
+## <TODO> How to call the rag independently when hosted on OpenShift
+
+
+## <TODO> How to call the rag independently when hosted on local machine
+
