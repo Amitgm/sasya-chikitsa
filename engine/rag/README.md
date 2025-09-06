@@ -47,3 +47,5 @@ This repository contains notebooks for creating embeddings, building a vector da
 
 ## <TODO> How to call the rag independently when hosted on local machine
 
+## <TODO> How to setup the local environment for development
+
