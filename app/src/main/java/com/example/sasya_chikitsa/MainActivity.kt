@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
         if (uri != null) {
             try {
                 showSelectedImage(uri)
-                Toast.makeText(this, "Image selected.", Toast.LENGTH_SHORT).show()
+//                Toast.makeText(this, "Image selected.", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e(TAG, "Error handling selected image", e)
                 Toast.makeText(this, "Error processing image: ${e.message}", Toast.LENGTH_LONG).show()
@@ -167,10 +167,10 @@ class MainActivity : ComponentActivity() {
             // Add user message to conversation history
             if (message.isNotEmpty()) {
                 addUserMessage(message, currentImageUri != null)
-                Toast.makeText(this, "Message sent: $message", Toast.LENGTH_SHORT).show()
+//                Toast.makeText(this, "Message sent: $message", Toast.LENGTH_SHORT).show()
             } else if (currentImageUri != null) {
                 addUserMessage("Image", true)
-                Toast.makeText(this, "Image sent", Toast.LENGTH_SHORT).show()
+//                Toast.makeText(this, "Image sent", Toast.LENGTH_SHORT).show()
             }
 
             // Clear the input field
