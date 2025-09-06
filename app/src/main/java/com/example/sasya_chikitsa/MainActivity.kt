@@ -323,14 +323,12 @@ class MainActivity : ComponentActivity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                // Constrain max width
+                // Set width constraints based on content type
                 if (message.imageUri != null) {
+                    // Messages with images get more consistent width
                     width = maxCardWidth - 32 // Account for padding
-                } else {
-                    // Text-only messages can be narrower
-                    minWidth = minCardWidth
-                    maxWidth = maxCardWidth - 32
                 }
+                // Text-only messages use WRAP_CONTENT naturally
             }
         }
         
@@ -389,9 +387,6 @@ class MainActivity : ComponentActivity() {
             ).apply {
                 setMargins(leftMargin, 8, rightMargin, 8) // Consistent spacing with user messages
                 gravity = android.view.Gravity.START // Align to left
-                
-                // Set max width constraint for AI messages (can be wider than user)
-                maxWidth = maxCardWidth
             }
             radius = 18f // WhatsApp-like rounded corners
             cardElevation = 2f // Subtle shadow like WhatsApp
@@ -404,8 +399,6 @@ class MainActivity : ComponentActivity() {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                maxWidth = maxCardWidth - 32 // Account for padding
             }
         }
         
