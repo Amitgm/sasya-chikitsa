@@ -1,13 +1,13 @@
-import pandas as pd
+# import pandas as pd
 from langchain_chroma import Chroma
-from langchain_core.prompts import ChatPromptTemplate,PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.chat_models import ChatOllama
-from fastapi import FastAPI
-from pydantic import BaseModel
-import uvicorn
-import os
+# from fastapi import FastAPI
+# from pydantic import BaseModel
+# import uvicorn
+# import os
 
 
 
@@ -47,12 +47,12 @@ class ollama_rag():
 
         self.llm = ChatOllama(
                     temperature=1, 
-                    # model_name="llama-3.1-8b",
-                    model_name = llm_name,
+                    model = llm_name, # model should be used -> llama3.1:8b
                     max_tokens=600,
                     top_p=0.90,
                 #     frequency_penalty=1,
                 #     presence_penalty=1,
+                
             )
         
         
@@ -69,7 +69,10 @@ class ollama_rag():
         embedding = HuggingFaceEmbeddings(
             # model_name="intfloat/multilingual-e5-large-instruct",
             model_name = embedding_model,
-            model_kwargs={"device": "cuda"})
+
+            model_kwargs={"device": "cpu"}
+            
+            )
         
         self.chroma_db = Chroma(
             persist_directory="./chroma_capstone_db_new",
@@ -102,9 +105,7 @@ class ollama_rag():
 
         return answer
 
-
-
-ollama_rag_object = ollama_rag(llm_name="llama-3.1-8b")
+ollama_rag_object = ollama_rag(llm_name="llama3.1:8b")
 
 ollama_rag_object.call_embeddings(embedding_model="intfloat/multilingual-e5-large-instruct",collection_name="Tomato")
 

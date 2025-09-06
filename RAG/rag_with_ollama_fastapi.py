@@ -12,7 +12,8 @@ import os
 
 llm = ChatOllama(
             temperature=1, 
-            model_name="llama-3.1-8b",
+            # model_name="llama-3.1-8b",
+            model = "llama3.1:8b",
             max_tokens=600,
             top_p=0.90,
         #     frequency_penalty=1,
@@ -91,6 +92,6 @@ def run_query(request:Queryrequest):
 
     return answer
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 
-#     uvicorn.run("rag_with_ollama:app", host="0.0.0.0", port=5050, reload=True)
+    uvicorn.run("rag_with_ollama_fastapi:app", host="0.0.0.0", port=5050, reload=True)
