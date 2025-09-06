@@ -335,7 +335,7 @@ class MainActivity : ComponentActivity() {
         // Add text if not empty (WhatsApp shows text even with images)
         if (message.text.isNotEmpty()) {
             val textView = TextView(this).apply {
-                text = message.text
+                text = "👤 ${message.text}" // Add user emoji icon
                 textSize = 17f // Slightly larger like WhatsApp
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
                 setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
@@ -414,9 +414,9 @@ class MainActivity : ComponentActivity() {
                 createStreamingActionItemsView(messageLayout, message.text)
             } else {
                 val textView = TextView(this).apply {
-                    // Clean text without emoji prefix - alignment makes it clear who's talking
+                    // Add AI emoji icon for clear identification
                     val displayText = message.text.removePrefix("🤖 ").trim()
-                    text = displayText
+                    text = "🤖 $displayText"
                     textSize = 16f // Consistent with user messages
                     setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                     setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
@@ -437,7 +437,7 @@ class MainActivity : ComponentActivity() {
     private fun createStructuredAssistantView(messageLayout: LinearLayout, structuredResponse: StructuredResponse) {
         // Main answer text with WhatsApp styling
         val mainAnswerText = TextView(this).apply {
-            text = structuredResponse.mainAnswer // No emoji prefix needed
+            text = "🤖 ${structuredResponse.mainAnswer}" // Add AI emoji icon
             textSize = 16f // Consistent with user messages
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
             setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
@@ -531,8 +531,9 @@ class MainActivity : ComponentActivity() {
         // Display regular content (bullet points)
         if (regularContent.isNotEmpty()) {
             val regularText = TextView(this).apply {
-                // Clean content without emoji prefix
-                text = regularContent.joinToString("\n").removePrefix("🤖 ").trim()
+                // Add AI emoji icon for clear identification
+                val cleanContent = regularContent.joinToString("\n").removePrefix("🤖 ").trim()
+                text = "🤖 $cleanContent"
                 textSize = 16f // Consistent with other messages
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                 setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
