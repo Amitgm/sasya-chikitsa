@@ -290,28 +290,35 @@ class MainActivity : ComponentActivity() {
         updateConversationDisplay()
     }
     
-    // Helper method to create a user message view with optional image
+    // Helper method to create a user message view with optional image (aligned right)
     private fun createUserMessageView(message: ConversationMessage): View {
+        // Calculate width for chat bubble effect (80% of screen width)
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val cardWidth = (screenWidth * 0.8).toInt()
+        val leftMargin = (screenWidth * 0.15).toInt() // Push to right
+        
         val messageCard = androidx.cardview.widget.CardView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
+                cardWidth,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(0, 0, 0, 16)
+                setMargins(leftMargin, 0, 16, 16)
+                gravity = android.view.Gravity.END // Align to right
             }
             radius = 20f
-            cardElevation = 4f
+            cardElevation = 6f
             setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.user_message_bg))
         }
         
         val messageLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 16, 24, 16)
+            setPadding(20, 16, 20, 16)
         }
         
-        // Add text
+        // Add text (no emoji prefix needed - alignment makes it clear)
         val textView = TextView(this).apply {
-            text = "👤 ${message.text}"
+            text = message.text
             textSize = 16f
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
             setLineSpacing(6f, 1f)
@@ -322,10 +329,10 @@ class MainActivity : ComponentActivity() {
         if (message.imageUri != null) {
             val imageView = ImageView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
-                    400, // width in pixels
+                    LinearLayout.LayoutParams.MATCH_PARENT, // Fill card width
                     300  // height in pixels
                 ).apply {
-                    setMargins(0, 16, 0, 0)
+                    setMargins(0, 12, 0, 0)
                 }
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setImageURI(message.imageUri)
@@ -341,27 +348,34 @@ class MainActivity : ComponentActivity() {
         return messageCard
     }
     
-    // Helper method to create an assistant message view
+    // Helper method to create an assistant message view (aligned left)
     private fun createAssistantMessageView(message: ConversationMessage): View {
+        // Calculate width for chat bubble effect (80% of screen width)
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val cardWidth = (screenWidth * 0.8).toInt()
+        val rightMargin = (screenWidth * 0.15).toInt() // Push to left
+        
         val messageCard = androidx.cardview.widget.CardView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
+                cardWidth,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(0, 0, 0, 16)
+                setMargins(16, 0, rightMargin, 16)
+                gravity = android.view.Gravity.START // Align to left
             }
             radius = 20f
-            cardElevation = 4f
+            cardElevation = 6f
             setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_message_bg))
         }
         
         val messageLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 16, 24, 16)
+            setPadding(20, 16, 20, 16)
         }
         
         // Check if this is a structured response with action items
-        val structuredResponse = parseStructuredResponse("🤖 ${message.text}")
+        val structuredResponse = parseStructuredResponse(message.text) // Remove emoji prefix from parsing
         
         if (structuredResponse != null) {
             // Handle structured response with separate formatting for main answer and action items
@@ -373,8 +387,8 @@ class MainActivity : ComponentActivity() {
                 createStreamingActionItemsView(messageLayout, message.text)
             } else {
                 val textView = TextView(this).apply {
-                    // Add 🤖 prefix if not already present
-                    val displayText = if (message.text.startsWith("🤖")) message.text else "🤖 ${message.text}"
+                    // Clean text without emoji prefix - alignment makes it clear who's talking
+                    val displayText = message.text.removePrefix("🤖 ").trim()
                     text = displayText
                     textSize = 16f
                     setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
@@ -393,7 +407,7 @@ class MainActivity : ComponentActivity() {
     private fun createStructuredAssistantView(messageLayout: LinearLayout, structuredResponse: StructuredResponse) {
         // Main answer text
         val mainAnswerText = TextView(this).apply {
-            text = "🤖 ${structuredResponse.mainAnswer}"
+            text = structuredResponse.mainAnswer // No emoji prefix needed
             textSize = 16f
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
             setLineSpacing(6f, 1f)
@@ -485,7 +499,8 @@ class MainActivity : ComponentActivity() {
         // Display regular content (bullet points)
         if (regularContent.isNotEmpty()) {
             val regularText = TextView(this).apply {
-                text = "🤖 ${regularContent.joinToString("\n")}"
+                // Clean content without emoji prefix
+                text = regularContent.joinToString("\n").removePrefix("🤖 ").trim()
                 textSize = 16f
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                 setLineSpacing(6f, 1f)
