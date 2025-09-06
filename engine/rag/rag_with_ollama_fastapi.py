@@ -23,7 +23,7 @@ else:
         "No chat model configured. Set OPENAI_API_KEY (and optionally OPENAI_MODEL) or run Ollama and set OLLAMA_MODEL."
     )
 
-print(f"Using model: {llm.model_name}")
+# print(f"Using model: {llm.model_name}")
 
 # llm = ChatOllama(
 #             temperature=1, 
@@ -68,7 +68,9 @@ PROMPT = PromptTemplate(
 chain_type_kwargs = {"prompt": PROMPT}
 
 print("Loading ChromaDB and setting up retriever...")
-embedding = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large-instruct",model_kwargs={"device": "auto"})
+embedding = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large-instruct",
+                                #   model_kwargs={"device": "mps"}
+                                  )
 chroma_db = Chroma(
     persist_directory="./chroma_capstone_db_new",
     embedding_function=embedding,
