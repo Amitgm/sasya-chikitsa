@@ -70,6 +70,8 @@ class AgentCore:
         self.model = CNNWithAttentionClassifier()
         self.image_store: Dict[str, str] = {}
         self.session_store: Dict[str, ChatMessageHistory] = {}
+        # Session metadata to store location, season, and other user-provided data
+        self.session_metadata: Dict[str, Dict[str, str]] = {}
         self.agent_with_history = self._build_agent()
         self._emit_ctx: ContextVar[Optional[Callable[[str], None]]] = ContextVar("emit_ctx", default=None)
         self._image_emitters: Dict[str, Callable[[str], None]] = {}
@@ -217,6 +219,328 @@ class AgentCore:
         if session_id not in self.session_store:
             self.session_store[session_id] = ChatMessageHistory()
         return self.session_store[session_id]
+    
+    def get_session_metadata(self, session_id: str) -> Dict[str, str]:
+        """Get metadata for a session (location, season, etc.)"""
+        if session_id not in self.session_metadata:
+            self.session_metadata[session_id] = {}
+        return self.session_metadata[session_id]
+    
+    def set_session_metadata(self, session_id: str, key: str, value: str):
+        """Set metadata value for a session"""
+        if session_id not in self.session_metadata:
+            self.session_metadata[session_id] = {}
+        self.session_metadata[session_id][key] = value
+        logger.info(f"Set session metadata for {session_id}: {key} = {value}")
+    
+    def has_location_and_season(self, session_id: str) -> bool:
+        """Check if session has both location and season data"""
+        metadata = self.get_session_metadata(session_id)
+        return 'location' in metadata and 'season' in metadata and metadata['location'].strip() and metadata['season'].strip()
+    
+    def has_complete_metadata(self, session_id: str) -> bool:
+        """Check if session has location, season, and plant data"""
+        metadata = self.get_session_metadata(session_id)
+        has_location = 'location' in metadata and metadata['location'].strip()
+        has_season = 'season' in metadata and metadata['season'].strip()
+        has_plant = 'plant' in metadata and metadata['plant'].strip()
+        return has_location and has_season and has_plant
+    
+    def get_missing_metadata(self, session_id: str) -> List[str]:
+        """Get list of missing metadata fields"""
+        metadata = self.get_session_metadata(session_id)
+        missing = []
+        
+        if not metadata.get('location', '').strip():
+            missing.append('location')
+        if not metadata.get('season', '').strip():
+            missing.append('season')
+        if not metadata.get('plant', '').strip():
+            missing.append('plant')
+            
+        return missing
+    
+    def extract_disease_from_classification(self, classification_text: str) -> Optional[str]:
+        """Extract disease name from classification result"""
+        # Look for common patterns in classification results
+        patterns = [
+            r'Health Status:\s*([^|]+)',
+            r'Disease:\s*([^|]+)', 
+            r'Diagnosed[^:]*:\s*([^|]+)',
+            r'Classification[^:]*:\s*([^|]+)'
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, classification_text, re.IGNORECASE)
+            if match:
+                disease = match.group(1).strip()
+                # Skip if it's "healthy" or similar
+                if disease.lower() not in ['healthy', 'normal', 'no disease', 'unknown']:
+                    return disease
+        
+        # Fallback: look for disease keywords
+        disease_keywords = ['blight', 'rust', 'spot', 'wilt', 'rot', 'mildew', 'mosaic', 'scab']
+        for keyword in disease_keywords:
+            if keyword in classification_text.lower():
+                return keyword.title()
+                
+        return None
+
+    def get_rag_prescription(self, session_id: str, disease: str, user_query: str = "") -> Optional[str]:
+        """Get specific prescription from RAG system using location, season, plant, and disease data"""
+        try:
+            metadata = self.get_session_metadata(session_id)
+            location = metadata.get('location', '')
+            season = metadata.get('season', '')
+            plant = metadata.get('plant', '')
+            
+            if not location or not season or not plant or not disease:
+                logger.warning(f"Missing data for RAG query - location: {location}, season: {season}, plant: {plant}, disease: {disease}")
+                return None
+                
+            # Import RAG system
+            from RAG.rag_with_ollama import ollama_rag
+            
+            # Initialize RAG system (this might need to be cached later for performance)
+            rag_system = ollama_rag(llm_name="llama-3.1-8b")
+            
+            # Determine collection name based on plant type
+            collection_name = self._get_rag_collection_name(plant)
+            
+            rag_system.call_embeddings(
+                embedding_model="intfloat/multilingual-e5-large-instruct",
+                collection_name=collection_name
+            )
+            rag_system.call_retriver()
+            
+            # Create comprehensive query combining all metadata
+            rag_query = f"Plant: {plant}, Location: {location}, Season: {season}, Disease: {disease}"
+            if user_query:
+                rag_query += f", Query: {user_query}"
+                
+            logger.info(f"Querying RAG system with: {rag_query}")
+            
+            # Get prescription from RAG
+            prescription = rag_system.run_query(rag_query)
+            logger.info(f"RAG prescription received: {prescription[:200]}...")
+            
+            return prescription
+            
+        except Exception as e:
+            logger.error(f"Error getting RAG prescription: {e}")
+            return None
+    
+    def _get_rag_collection_name(self, plant: str) -> str:
+        """Determine the appropriate RAG collection based on plant type"""
+        plant_lower = plant.lower()
+        
+        # Map common plants to their RAG collections
+        plant_collections = {
+            'tomato': 'Tomato',
+            'potato': 'Tomato',  # Might use same collection if available
+            'rice': 'Paddy',
+            'paddy': 'Paddy', 
+            'wheat': 'Wheat',
+            'cotton': 'Cotton',
+            'apple': 'Apple',
+            'coconut': 'Coconut',
+        }
+        
+        # Return specific collection if available, otherwise default to Tomato
+        return plant_collections.get(plant_lower, 'Tomato')
+
+    def parse_and_store_user_metadata(self, session_id: str, user_input: str) -> bool:
+        """Parse user input for location and season information and store it"""
+        stored_anything = False
+        input_lower = user_input.lower()
+        
+        # Parse location information
+        location_patterns = [
+            r"location[:\s]+([a-zA-Z\s]+?)(?:[,\.\n]|$)",
+            r"i am from ([a-zA-Z\s]+?)(?:[,\.\n\s]|$)",
+            r"i live in ([a-zA-Z\s]+?)(?:[,\.\n\s]|$)",
+            r"my location is ([a-zA-Z\s]+?)(?:[,\.\n]|$)",
+            r"district[:\s]+([a-zA-Z\s]+?)(?:[,\.\n]|$)",
+            r"state[:\s]+([a-zA-Z\s]+?)(?:[,\.\n]|$)",
+            r"in ([a-zA-Z\s]+) (?:state|district|city)",
+            r"from ([a-zA-Z\s]+) (?:state|district|city)",
+            r"at ([a-zA-Z\s]+) (?:state|district|city)",
+            r"in ([a-zA-Z\s]+)(?:,|\s+(?:during|in\s+(?:summer|winter|monsoon)))",
+            r"from ([a-zA-Z\s]+)(?:,|\s+(?:during|in\s+(?:summer|winter|monsoon)))",
+        ]
+        
+        for pattern in location_patterns:
+            match = re.search(pattern, input_lower)
+            if match:
+                location = match.group(1).strip()
+                if location and len(location) > 2:  # Basic validation
+                    self.set_session_metadata(session_id, 'location', location)
+                    stored_anything = True
+                    break
+        
+        # Parse season information
+        season_patterns = [
+            r"season[:\s]+([a-zA-Z\s]+?)(?:[,\.\n]|$)",
+            r"current season is ([a-zA-Z\s]+?)(?:[,\.\n]|$)",
+            r"it['\s]*s ([a-zA-Z\s]+?) season",
+            r"during ([a-zA-Z\s]*(?:summer|winter|monsoon|spring|autumn|rainy|dry|kharif|rabi|zaid)[a-zA-Z\s]*?)(?:\s|$)",
+            r"in ([a-zA-Z\s]*(?:summer|winter|monsoon|spring|autumn|rainy|dry|kharif|rabi|zaid)[a-zA-Z\s]*?)(?:\s|$)",
+            r"we are in ([a-zA-Z\s]+?) season",
+        ]
+        
+        seasons = ['summer', 'winter', 'monsoon', 'spring', 'autumn', 'rainy', 'dry', 'kharif', 'rabi', 'zaid']
+        
+        for pattern in season_patterns:
+            match = re.search(pattern, input_lower)
+            if match:
+                season = match.group(1).strip()
+                if any(s in season for s in seasons):
+                    self.set_session_metadata(session_id, 'season', season)
+                    stored_anything = True
+                    break
+        
+        # Direct season detection
+        if not stored_anything:
+            for season in seasons:
+                if season in input_lower:
+                    self.set_session_metadata(session_id, 'season', season)
+                    stored_anything = True
+                    break
+        
+        # Parse plant/crop information
+        plant_patterns = [
+            r"plant[:\s]+([a-zA-Z\s]+?)(?:[,\.\n]|$)",
+            r"crop[:\s]+([a-zA-Z\s]+?)(?:[,\.\n]|$)",
+            r"my ([a-zA-Z\s]+) plant",
+            r"([a-zA-Z\s]+) plant (?:in|from|at|during|has|shows|with)",
+            r"([a-zA-Z\s]+) crop (?:in|from|at|during|has|shows|with)",
+            r"growing ([a-zA-Z\s]+?)(?:[,\.\n\s]|$)",
+            r"cultivating ([a-zA-Z\s]+?)(?:[,\.\n\s]|$)",
+        ]
+        
+        # Common plants/crops to recognize
+        plants = [
+            'tomato', 'potato', 'rice', 'wheat', 'corn', 'maize', 'cotton', 'sugarcane',
+            'onion', 'garlic', 'cabbage', 'cauliflower', 'brinjal', 'eggplant', 'okra',
+            'chili', 'pepper', 'cucumber', 'pumpkin', 'bottle gourd', 'bitter gourd',
+            'beans', 'peas', 'lentil', 'chickpea', 'soybean', 'groundnut', 'peanut',
+            'mango', 'banana', 'apple', 'orange', 'lemon', 'pomegranate', 'grape',
+            'papaya', 'guava', 'coconut', 'areca', 'betel', 'cardamom', 'turmeric',
+            'ginger', 'tea', 'coffee', 'rubber', 'mustard', 'sunflower', 'sesame'
+        ]
+        
+        for pattern in plant_patterns:
+            match = re.search(pattern, input_lower)
+            if match:
+                plant_candidate = match.group(1).strip()
+                # Check if the candidate contains known plant names
+                for plant in plants:
+                    if plant in plant_candidate.lower():
+                        # Extract just the plant name or use the full candidate if it's short
+                        plant_name = plant if len(plant_candidate.split()) > 2 else plant_candidate
+                        self.set_session_metadata(session_id, 'plant', plant_name)
+                        stored_anything = True
+                        break
+                if stored_anything:
+                    break
+        
+        # Direct plant detection - only for clear standalone plant names
+        if 'plant' not in self.get_session_metadata(session_id):
+            for plant in plants:
+                # Use word boundaries to avoid partial matches
+                pattern = r'\b' + re.escape(plant) + r'\b'
+                if re.search(pattern, input_lower):
+                    self.set_session_metadata(session_id, 'plant', plant)
+                    stored_anything = True
+                    logger.info(f"Direct plant detection found: {plant}")
+                    break
+        
+        return stored_anything
+
+    def _enhance_classification_result(self, classification_result: str, session_id: str) -> str:
+        """Enhance classification result with smart action items based on available metadata"""
+        
+        # Check what data we have
+        metadata = self.get_session_metadata(session_id)
+        has_location = 'location' in metadata and metadata['location'].strip()
+        has_season = 'season' in metadata and metadata['season'].strip()
+        has_plant = 'plant' in metadata and metadata['plant'].strip()
+        
+        missing_fields = self.get_missing_metadata(session_id)
+        
+        # Extract disease from classification
+        disease = self.extract_disease_from_classification(classification_result)
+        
+        # Build smart action items based on what's missing
+        action_items = []
+        
+        if disease and disease.lower() not in ['healthy', 'normal']:
+            # Disease detected - prioritize missing metadata
+            if len(missing_fields) > 0:
+                # Add specific prompts for missing data
+                if 'location' in missing_fields:
+                    action_items.append("Tell me your location (district/state)")
+                if 'season' in missing_fields:
+                    action_items.append("Tell me the current season")
+                if 'plant' in missing_fields:
+                    action_items.append("Tell me what plant/crop this is")
+                
+                # Encourage getting complete info for specific advice
+                if len(missing_fields) == 1:
+                    action_items.append("Get plant-specific prescription")
+                else:
+                    action_items.append("Get specific prescription for my area")
+            else:
+                # Have all metadata - offer comprehensive prescription
+                plant_name = metadata['plant']
+                action_items.extend([
+                    f"Get specific prescription for {plant_name}",
+                    "Show detailed treatment plan",
+                    "Get prevention strategies"
+                ])
+            
+            # Always add general treatment options
+            action_items.extend([
+                "Show treatment steps",
+                "Explain prevention methods"
+            ])
+        else:
+            # Healthy plant or no clear disease
+            if len(missing_fields) > 0:
+                if 'plant' in missing_fields:
+                    action_items.append("Tell me what plant this is")
+                if 'location' in missing_fields:
+                    action_items.append("Tell me your location for better advice")
+                if 'season' in missing_fields:
+                    action_items.append("Tell me the current season")
+            
+            if has_plant:
+                plant_name = metadata['plant']
+                action_items.extend([
+                    f"Get {plant_name} care tips",
+                    f"Learn about {plant_name} diseases"
+                ])
+            else:
+                action_items.extend([
+                    "Get general plant care tips",
+                    "Ask plant care questions"
+                ])
+        
+        # Always add general options
+        action_items.extend([
+            "Ask follow-up question",
+            "Upload new plant image"
+        ])
+        
+        # Create enhanced result with MAIN_ANSWER/ACTION_ITEMS format
+        enhanced_result = f"MAIN_ANSWER: {classification_result}\nACTION_ITEMS: {' | '.join(action_items)}"
+        
+        # Log what was enhanced
+        logger.info(f"Enhanced classification result - Location: {has_location}, Season: {has_season}, Plant: {has_plant}, Disease: {disease}")
+        logger.debug(f"Missing fields: {missing_fields}")
+        logger.debug(f"Generated action items: {action_items}")
+        
+        return enhanced_result
 
     def _build_agent(self) -> RunnableWithMessageHistory:
         @tool("classify_leaf", return_direct=True)
@@ -545,7 +869,7 @@ class AgentCore:
         user_input = inputs.get("input", "")
         system_context = inputs.get("system_context", "")
         
-        logger.debug(f"Handling image classification: input='{user_input}', context='{system_context}'")
+        logger.debug(f"Handling image classification: input='{user_input}', context='{system_context}', session='{session_id}'")
         
         # Extract image handle from system context
         import re
@@ -580,6 +904,12 @@ class AgentCore:
             # If we get here, we have a valid image, so do the actual classification
             logger.info(f"✅ Starting image classification for handle: {image_handle}")
             
+            # Parse user input for location and season data BEFORE classification
+            if user_input:
+                stored_metadata = self.parse_and_store_user_metadata(session_id, user_input)
+                if stored_metadata:
+                    logger.info(f"Extracted location/season from image text for session {session_id}")
+            
             # Call the image classification with async streaming delays
             image_b64 = self.image_store[image_handle]
             logger.debug(f"Image found, proceeding with async classification")
@@ -590,11 +920,14 @@ class AgentCore:
             classification_result = await self._stream_image_classification(image_b64, user_input or "", emitter, outputs)
             logger.info(f"✅ Classification completed: {classification_result[:200]}...")
             
+            # Enhance classification result with smart action items based on available data
+            enhanced_result = self._enhance_classification_result(classification_result, session_id)
+            
             # Create a proper agent result format
             return {
-                "output": classification_result,
+                "output": enhanced_result,
                 "intermediate_steps": [
-                    (f"Image classification completed for {image_handle}", classification_result)
+                    (f"Image classification completed for {image_handle}", enhanced_result)
                 ]
             }
             
@@ -705,11 +1038,45 @@ class AgentCore:
     async def invoke_agent(self, inputs: Dict, session_id: str, callbacks: Optional[list] = None):
         # Check if there's an image_handle in the system context
         system_context = inputs.get("system_context", "")
+        user_input = inputs.get("input", "")
         has_image = "image_handle=" in system_context
         
         logger.debug(f"invoke_agent called with system_context: '{system_context}'")
         logger.debug(f"has_image: {has_image}")
         logger.debug(f"inputs: {inputs}")
+        
+        # Parse and store any location/season information from user input
+        if user_input:
+            stored_metadata = self.parse_and_store_user_metadata(session_id, user_input)
+            if stored_metadata:
+                logger.info(f"Stored metadata from user input for session {session_id}")
+        
+        # Check if user is asking for RAG-based prescription
+        if self.has_complete_metadata(session_id) and any(keyword in user_input.lower() for keyword in [
+            'prescription', 'treatment', 'specific', 'location', 'area', 'recommend'
+        ]):
+            # Try to get disease from previous conversation or current context
+            disease = None
+            
+            # Check if there's a recent disease classification
+            history = self.get_session_history(session_id)
+            messages = getattr(history, 'messages', [])
+            
+            for msg in reversed(messages[-5:]):  # Check last 5 messages
+                if getattr(msg, "type", None) == "ai":
+                    content = getattr(msg, "content", "")
+                    disease = self.extract_disease_from_classification(content)
+                    if disease:
+                        break
+            
+            if disease:
+                metadata = self.get_session_metadata(session_id)
+                plant_name = metadata.get('plant', 'plant')
+                logger.info(f"Attempting RAG prescription for {plant_name} disease: {disease}")
+                rag_prescription = self.get_rag_prescription(session_id, disease, user_input)
+                if rag_prescription:
+                    structured_response = f"MAIN_ANSWER: Based on your {plant_name} crop, location, and current season, here's the specific prescription for {disease}: {rag_prescription}\nACTION_ITEMS: Follow treatment plan | Ask about side effects | Get {plant_name} care tips | Upload new plant image"
+                    return {"output": structured_response, "intermediate_steps": []}
         
         # PRE-FILTER: Handle both scenarios directly to avoid ReAct format confusion entirely
         if not has_image:
@@ -766,7 +1133,7 @@ class AgentCore:
             
         return result
 
-    def parse_structured_response(self, response_text: str) -> Dict[str, Union[str, List[str]]]:
+    def parse_structured_response(self, response_text: str, session_id: str = None, is_classification_result: bool = False) -> Dict[str, Union[str, List[str]]]:
         """Parse structured response into main answer and action items array."""
         logger.debug(f"Parsing structured response: {response_text}")
         
@@ -788,17 +1155,17 @@ class AgentCore:
             # Fallback: if no structured format found, create one with intelligent action items
             if not main_answer and not action_items_str:
                 main_answer = response_text.strip()
-                action_items_str = self._generate_fallback_action_items(main_answer)
+                action_items_str = self._generate_fallback_action_items(main_answer, session_id, is_classification_result)
                 logger.warning(f"No structured format found, created fallback format with action items: {action_items_str}")
             elif main_answer and not action_items_str:
                 # Main answer found but no action items, generate fallback action items
-                action_items_str = self._generate_fallback_action_items(main_answer)
+                action_items_str = self._generate_fallback_action_items(main_answer, session_id, is_classification_result)
                 logger.warning(f"Found main answer but no action items, generated fallback: {action_items_str}")
             
         except Exception as e:
             logger.error(f"Error parsing structured response: {e}")
             main_answer = response_text.strip()
-            action_items_str = self._generate_fallback_action_items(main_answer)
+            action_items_str = self._generate_fallback_action_items(main_answer, session_id, is_classification_result)
         
         # Convert pipe-separated string to array
         action_items_array = []
@@ -813,13 +1180,40 @@ class AgentCore:
         logger.debug(f"Parsed response - Main: '{main_answer[:100]}...', Action Items: {action_items_array}")
         return result
 
-    @staticmethod
-    def _generate_fallback_action_items(main_answer: str) -> str:
+    def _generate_fallback_action_items(self, main_answer: str, session_id: str = None, is_classification_result: bool = False) -> str:
         """Generate appropriate action items based on the main answer content."""
         action_items = []
         
         # Convert to lowercase for keyword matching
         content_lower = main_answer.lower()
+        
+        # If this is a classification result and we don't have complete metadata, prioritize collection
+        if is_classification_result and session_id:
+            missing_fields = self.get_missing_metadata(session_id)
+            if len(missing_fields) > 0:
+                # Check if there's a disease detected
+                disease = self.extract_disease_from_classification(main_answer)
+                if disease:
+                    # Disease detected but missing metadata - prioritize collection
+                    if 'location' in missing_fields:
+                        action_items.append("Tell me your location (district/state)")
+                    if 'season' in missing_fields:
+                        action_items.append("Tell me the current season")
+                    if 'plant' in missing_fields:
+                        action_items.append("Tell me what plant/crop this is")
+                    
+                    if len(missing_fields) == 1:
+                        action_items.append("Get plant-specific prescription")
+                    else:
+                        action_items.append("Get specific prescription for my area")
+                else:
+                    # Healthy plant or no clear disease - still collect for future
+                    if 'plant' in missing_fields:
+                        action_items.append("Tell me what plant this is")
+                    if 'location' in missing_fields:
+                        action_items.append("Tell me your location for better advice")
+                    if 'season' in missing_fields:
+                        action_items.append("Tell me the current season")
         
         # Based on content, suggest relevant action items
         if any(keyword in content_lower for keyword in ['watering', 'water', 'irrigation']):
@@ -829,7 +1223,14 @@ class AgentCore:
             action_items.append("Show fertilization procedure")
         
         if any(keyword in content_lower for keyword in ['disease', 'infection', 'fungal', 'bacterial', 'pest']):
-            action_items.append("Send me prescription for this disease")
+            if session_id and self.has_complete_metadata(session_id):
+                metadata = self.get_session_metadata(session_id)
+                plant_name = metadata.get('plant', 'plant')
+                action_items.append(f"Get specific prescription for {plant_name}")
+            elif session_id and len(self.get_missing_metadata(session_id)) == 1:
+                action_items.append("Get plant-specific prescription")
+            else:
+                action_items.append("Send me prescription for this disease")
             action_items.append("Show treatment steps")
         
         if any(keyword in content_lower for keyword in ['care', 'maintain', 'schedule']):
@@ -855,7 +1256,7 @@ class AgentCore:
         
         return " | ".join(action_items)
     
-    def force_structure_response(self, response_text: str) -> str:
+    def force_structure_response(self, response_text: str, session_id: str = None, is_classification_result: bool = False) -> str:
         """Force any response into the required MAIN_ANSWER/ACTION_ITEMS structure."""
         # Check if response already has proper structure
         if "MAIN_ANSWER:" in response_text and "ACTION_ITEMS:" in response_text:
@@ -867,7 +1268,7 @@ class AgentCore:
         main_content = response_text.strip()
         
         # Generate appropriate action items based on content
-        action_items = self._generate_fallback_action_items(main_content)
+        action_items = self._generate_fallback_action_items(main_content, session_id, is_classification_result)
         
         # Force the structured format
         structured_response = f"MAIN_ANSWER: {main_content}\nACTION_ITEMS: {action_items}"
@@ -878,6 +1279,19 @@ class AgentCore:
     async def summarize_response(self, final_text: str, session_id: str, user_text: Optional[str] = None):
         classification_history = self._get_classification_history(session_id)
         
+        # Check if we have complete metadata (location, season, plant)
+        has_complete_metadata = self.has_complete_metadata(session_id)
+        metadata = self.get_session_metadata(session_id)
+        missing_fields = self.get_missing_metadata(session_id)
+        
+        # Extract disease from current classification if available
+        disease = self.extract_disease_from_classification(final_text)
+        
+        # If we have all data (location, season, plant, disease), try to get RAG prescription
+        rag_prescription = None
+        if has_complete_metadata and disease:
+            rag_prescription = self.get_rag_prescription(session_id, disease, user_text or "")
+        
         # Base prompt for plant expert assistant
         base_prompt = (
                 "You are a plant expert assistant. Use all previous plant leaf classification results in this session (provided below) "
@@ -885,6 +1299,31 @@ class AgentCore:
                 "If the image is not present, use the classification history (shown as 'Previous Results') to answer. "
             "Always follow up with relevant action items.\n\n"
         )
+        
+        # Add context about metadata availability
+        if len(missing_fields) > 0:
+            missing_items = []
+            if 'location' in missing_fields:
+                missing_items.append("location (district/state)")
+            if 'season' in missing_fields:
+                missing_items.append("current season")
+            if 'plant' in missing_fields:
+                missing_items.append("plant/crop type")
+                
+            base_prompt += (
+                f"IMPORTANT: The user has not provided {', '.join(missing_items)} information yet. "
+                "If a plant disease is detected, you should prioritize asking for this missing information "
+                "in your action items so you can provide specific, comprehensive prescriptions.\n\n"
+            )
+        elif rag_prescription:
+            plant_name = metadata.get('plant', 'unknown')
+            location = metadata.get('location', 'unknown')
+            season = metadata.get('season', 'unknown')
+            base_prompt += (
+                f"IMPORTANT: You have complete information - plant: {plant_name}, location: {location}, season: {season}. "
+                f"A specific prescription has been generated from the knowledge base: {rag_prescription}\n"
+                "Include this prescription information in your response.\n\n"
+            )
         
         # Add user text prompt handling if provided
         if user_text and user_text.strip():
