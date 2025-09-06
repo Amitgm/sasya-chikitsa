@@ -290,56 +290,81 @@ class MainActivity : ComponentActivity() {
         updateConversationDisplay()
     }
     
-    // Helper method to create a user message view with optional image (aligned right)
+    // Helper method to create a user message view with optional image (aligned right, WhatsApp-style)
     private fun createUserMessageView(message: ConversationMessage): View {
-        // Calculate width for chat bubble effect (80% of screen width)
+        // Calculate width for WhatsApp-like chat bubble (75% max width, but can be smaller for short messages)
         val displayMetrics = resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
-        val cardWidth = (screenWidth * 0.8).toInt()
-        val leftMargin = (screenWidth * 0.15).toInt() // Push to right
+        val maxCardWidth = (screenWidth * 0.75).toInt()
+        val minCardWidth = (screenWidth * 0.3).toInt()
+        val rightMargin = 16
+        val leftMargin = (screenWidth * 0.2).toInt() // More space on left to push right
         
         val messageCard = androidx.cardview.widget.CardView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
-                cardWidth,
+                LinearLayout.LayoutParams.WRAP_CONTENT, // Let it size based on content
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(leftMargin, 0, 16, 16)
+                setMargins(leftMargin, 8, rightMargin, 8) // Reduced vertical margins for tighter spacing
                 gravity = android.view.Gravity.END // Align to right
+                
+                // Set max width constraint
+                width = LinearLayout.LayoutParams.WRAP_CONTENT
             }
-            radius = 20f
-            cardElevation = 6f
+            radius = 18f // WhatsApp-like rounded corners
+            cardElevation = 2f // Subtle shadow like WhatsApp
             setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.user_message_bg))
         }
         
         val messageLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(20, 16, 20, 16)
+            setPadding(16, 12, 16, 12) // WhatsApp-like padding
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                // Constrain max width
+                if (message.imageUri != null) {
+                    width = maxCardWidth - 32 // Account for padding
+                } else {
+                    // Text-only messages can be narrower
+                    minWidth = minCardWidth
+                    maxWidth = maxCardWidth - 32
+                }
+            }
         }
         
-        // Add text (no emoji prefix needed - alignment makes it clear)
-        val textView = TextView(this).apply {
-            text = message.text
-            textSize = 16f
-            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
-            setLineSpacing(6f, 1f)
+        // Add text if not empty (WhatsApp shows text even with images)
+        if (message.text.isNotEmpty()) {
+            val textView = TextView(this).apply {
+                text = message.text
+                textSize = 17f // Slightly larger like WhatsApp
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
+                setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
+                typeface = android.graphics.Typeface.DEFAULT
+                
+                // Make text wrap nicely
+                maxWidth = maxCardWidth - 64 // Account for padding and margins
+            }
+            messageLayout.addView(textView)
         }
-        messageLayout.addView(textView)
         
-        // Add image if present
+        // Add image if present (WhatsApp-style image sizing)
         if (message.imageUri != null) {
             val imageView = ImageView(this).apply {
+                val imageSize = minOf(maxCardWidth - 32, 280) // Max 280dp like WhatsApp, account for padding
                 layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, // Fill card width
-                    300  // height in pixels
+                    imageSize,
+                    imageSize
                 ).apply {
-                    setMargins(0, 12, 0, 0)
+                    setMargins(0, if (message.text.isNotEmpty()) 8 else 0, 0, 0) // Space from text if both exist
                 }
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setImageURI(message.imageUri)
                 
-                // Add border and corner radius
-                background = resources.getDrawable(R.drawable.modern_card_background, null)
-                setPadding(8, 8, 8, 8)
+                // WhatsApp-like rounded corner background
+                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.modern_card_background)
+                clipToOutline = true
             }
             messageLayout.addView(imageView)
         }
@@ -348,41 +373,50 @@ class MainActivity : ComponentActivity() {
         return messageCard
     }
     
-    // Helper method to create an assistant message view (aligned left)
+    // Helper method to create an assistant message view (aligned left, WhatsApp-style)
     private fun createAssistantMessageView(message: ConversationMessage): View {
-        // Calculate width for chat bubble effect (80% of screen width)
+        // Calculate width for WhatsApp-like chat bubble (85% max width for longer AI responses)
         val displayMetrics = resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
-        val cardWidth = (screenWidth * 0.8).toInt()
-        val rightMargin = (screenWidth * 0.15).toInt() // Push to left
+        val maxCardWidth = (screenWidth * 0.85).toInt()
+        val leftMargin = 16
+        val rightMargin = (screenWidth * 0.1).toInt() // Less space on right to push left
         
         val messageCard = androidx.cardview.widget.CardView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
-                cardWidth,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(16, 0, rightMargin, 16)
+                setMargins(leftMargin, 8, rightMargin, 8) // Consistent spacing with user messages
                 gravity = android.view.Gravity.START // Align to left
+                
+                // Set max width constraint for AI messages (can be wider than user)
+                maxWidth = maxCardWidth
             }
-            radius = 20f
-            cardElevation = 6f
+            radius = 18f // WhatsApp-like rounded corners
+            cardElevation = 2f // Subtle shadow like WhatsApp
             setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_message_bg))
         }
         
         val messageLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(20, 16, 20, 16)
+            setPadding(16, 12, 16, 12) // WhatsApp-like padding
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                maxWidth = maxCardWidth - 32 // Account for padding
+            }
         }
         
         // Check if this is a structured response with action items
-        val structuredResponse = parseStructuredResponse(message.text) // Remove emoji prefix from parsing
+        val structuredResponse = parseStructuredResponse(message.text)
         
         if (structuredResponse != null) {
             // Handle structured response with separate formatting for main answer and action items
             createStructuredAssistantView(messageLayout, structuredResponse)
         } else {
             // Handle regular response with bullet point formatting preserved
-            // Check if this has streaming action items (with checkmarks ✓)
             if (message.text.contains("📋 Recommended Actions:")) {
                 createStreamingActionItemsView(messageLayout, message.text)
             } else {
@@ -390,10 +424,13 @@ class MainActivity : ComponentActivity() {
                     // Clean text without emoji prefix - alignment makes it clear who's talking
                     val displayText = message.text.removePrefix("🤖 ").trim()
                     text = displayText
-                    textSize = 16f
+                    textSize = 16f // Consistent with user messages
                     setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
-                    setLineSpacing(6f, 1f)
+                    setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
                     movementMethod = LinkMovementMethod.getInstance()
+                    
+                    // Constrain max width for better readability
+                    maxWidth = maxCardWidth - 64
                 }
                 messageLayout.addView(textView)
             }
@@ -403,37 +440,39 @@ class MainActivity : ComponentActivity() {
         return messageCard
     }
     
-    // Helper method to create structured assistant view with clickable action items
+    // Helper method to create structured assistant view with clickable action items (WhatsApp-style)
     private fun createStructuredAssistantView(messageLayout: LinearLayout, structuredResponse: StructuredResponse) {
-        // Main answer text
+        // Main answer text with WhatsApp styling
         val mainAnswerText = TextView(this).apply {
             text = structuredResponse.mainAnswer // No emoji prefix needed
-            textSize = 16f
+            textSize = 16f // Consistent with user messages
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
-            setLineSpacing(6f, 1f)
+            setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
         }
         messageLayout.addView(mainAnswerText)
         
         // Action items section if they exist
         if (structuredResponse.actionItems.isNotEmpty()) {
-            // Add some spacing
-            val spacing = TextView(this).apply {
-                text = ""
-                textSize = 8f
+            // Add spacing between main answer and actions
+            val spacing = LinearLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    12
+                ) // 12dp spacing like WhatsApp
             }
             messageLayout.addView(spacing)
             
-            // Action items header
+            // Action items header with better styling
             val actionHeader = TextView(this).apply {
                 text = "📋 Quick Actions:"
-                textSize = 16f
+                textSize = 15f // Slightly smaller for section headers
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setPadding(0, 8, 0, 8)
+                setPadding(0, 4, 0, 8) // WhatsApp-like spacing
             }
             messageLayout.addView(actionHeader)
             
-            // Create clickable action items
+            // Create clickable action items with WhatsApp-like styling
             structuredResponse.actionItems.forEach { actionItem ->
                 val actionTextView = TextView(this).apply {
                     val actionText = "• $actionItem"
@@ -460,10 +499,10 @@ class MainActivity : ComponentActivity() {
                     spannableString.setSpan(StyleSpan(android.graphics.Typeface.BOLD), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     
                     text = spannableString
-                    textSize = 15f
-                    setLineSpacing(4f, 1f)
+                    textSize = 15f // WhatsApp-like action item size
+                    setLineSpacing(3f, 1.1f) // WhatsApp-like line spacing
                     movementMethod = LinkMovementMethod.getInstance()
-                    setPadding(16, 4, 0, 4)
+                    setPadding(12, 6, 0, 6) // WhatsApp-like padding
                 }
                 messageLayout.addView(actionTextView)
             }
@@ -501,29 +540,31 @@ class MainActivity : ComponentActivity() {
             val regularText = TextView(this).apply {
                 // Clean content without emoji prefix
                 text = regularContent.joinToString("\n").removePrefix("🤖 ").trim()
-                textSize = 16f
+                textSize = 16f // Consistent with other messages
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
-                setLineSpacing(6f, 1f)
+                setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
             }
             messageLayout.addView(regularText)
         }
         
         // Display action items section if they exist
         if (actionItems.isNotEmpty()) {
-            // Add spacing
-            val spacing = TextView(this).apply {
-                text = ""
-                textSize = 8f
+            // Add WhatsApp-like spacing between content and actions
+            val spacing = LinearLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    12
+                ) // 12dp spacing like WhatsApp
             }
             messageLayout.addView(spacing)
             
-            // Action items header
+            // Action items header with WhatsApp-like styling  
             val actionHeader = TextView(this).apply {
                 text = "📋 Recommended Actions:"
-                textSize = 16f
+                textSize = 15f // Slightly smaller for section headers like WhatsApp
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setPadding(0, 8, 0, 8)
+                setPadding(0, 4, 0, 8) // WhatsApp-like spacing
             }
             messageLayout.addView(actionHeader)
             
@@ -554,10 +595,10 @@ class MainActivity : ComponentActivity() {
                     spannableString.setSpan(StyleSpan(android.graphics.Typeface.BOLD), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     
                     text = spannableString
-                    textSize = 15f
-                    setLineSpacing(4f, 1f)
+                    textSize = 15f // WhatsApp-like action item size
+                    setLineSpacing(3f, 1.1f) // WhatsApp-like line spacing
                     movementMethod = LinkMovementMethod.getInstance()
-                    setPadding(16, 4, 0, 4)
+                    setPadding(12, 6, 0, 6) // WhatsApp-like padding
                 }
                 messageLayout.addView(actionTextView)
             }
