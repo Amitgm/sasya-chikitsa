@@ -399,7 +399,7 @@ class MainActivity : ComponentActivity() {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            }
+            )
         }
         
         // Check if this is a structured response with action items
