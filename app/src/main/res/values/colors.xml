@@ -24,9 +24,9 @@
     <color name="earth_orange">#FF8A65</color>
     
     <!-- Background & Surface Colors -->
-    <color name="cream_white">#FFF8E1</color>
-    <color name="warm_white">#FFFDE7</color>
-    <color name="soft_green_bg">#E8F5E8</color>
+    <color name="clean_white">#FFFFFF</color>
+    <color name="soft_white">#FAFAFA</color>
+    <color name="light_green_bg">#E8F5E8</color>
     <color name="sage_bg">#F1F8E9</color>
     
     <!-- Text Colors -->
@@ -40,8 +40,8 @@
     
     <!-- User & Assistant Message Colors -->
     <color name="user_message_bg">#E8F5E8</color>      <!-- Soft green for user -->
-    <color name="assistant_message_bg">#FFF8E1</color>  <!-- Warm cream for assistant -->
+    <color name="assistant_message_bg">#FFFFFF</color>  <!-- Clean white for assistant -->
     <color name="user_text">#1B5E20</color>            <!-- Dark forest green -->
-    <color name="assistant_text">#3E2723</color>        <!-- Rich brown -->
+    <color name="assistant_text">#2E2E2E</color>        <!-- Dark gray for better readability -->
     <color name="action_item_color">#2E7D32</color>     <!-- Forest green for clickable items -->
 </resources>

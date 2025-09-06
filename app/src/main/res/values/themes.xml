@@ -9,7 +9,7 @@
         
         <!-- Background colors -->
         <item name="android:windowBackground">@drawable/gradient_background</item>
-        <item name="android:colorBackground">@color/cream_white</item>
+        <item name="android:colorBackground">@color/clean_white</item>
         
         <!-- Text colors -->
         <item name="android:textColorPrimary">@color/earth_text_primary</item>
