@@ -1225,22 +1225,32 @@ class MainActivity : ComponentActivity() {
             Log.i(TAG, "   📦 Chunks collected: ${streamingChunks.size}")
             
             if (isCurrentlyStreaming && streamingChunks.isNotEmpty()) {
-                Log.i(TAG, "✅ PROCESSING COLLECTED STREAMING CHUNKS:")
-                Log.i(TAG, "   📊 Total chunks to finalize: ${streamingChunks.size}")
+                Log.i(TAG, "✅ PRESERVING REAL-TIME STREAMED DISPLAY:")
+                Log.i(TAG, "   📊 Total chunks streamed individually: ${streamingChunks.size}")
+                Log.i(TAG, "   🔄 Chunks were displayed in real-time, now preserving for history")
                 
-                // Log all collected chunks
+                // Log chunks for debugging (they were already displayed individually)
                 streamingChunks.forEachIndexed { index, chunk ->
-                    Log.i(TAG, "   📦 Chunk ${index + 1}: '$chunk'")
+                    Log.i(TAG, "   📦 Chunk ${index + 1} (already displayed): '$chunk'")
                 }
                 
-                // Combine all chunks into the final message
-                val fullStreamingResponse = streamingChunks.joinToString("\n")
+                // DON'T combine chunks - preserve the real-time streaming nature
+                // The chunks have already been displayed in real-time via addStreamingChunk()
+                // Now we just need to preserve the current streamed display for conversation history
                 
-                // IMPORTANT: Don't call addAssistantMessage() as it overwrites the streaming display!
-                // Instead, add the streamed content directly to conversation history
+                // Get the current displayed content (which shows the real-time streaming result)
+                val currentDisplayedContent = responseTextView.text.toString()
                 
-                // Check if this is a structured response
-                val structuredResponse = parseStructuredResponse(fullStreamingResponse)
+                // Extract just the streamed response part (after the last "🤖" header)
+                val lastBotIndex = currentDisplayedContent.lastIndexOf("🤖")
+                val streamedContent = if (lastBotIndex != -1) {
+                    currentDisplayedContent.substring(lastBotIndex)
+                } else {
+                    currentDisplayedContent
+                }
+                
+                // Check if the streamed content represents a structured response
+                val structuredResponse = parseStructuredResponse(streamedContent)
                 
                 if (structuredResponse != null) {
                     // Handle structured response - format with action items
@@ -1268,26 +1278,25 @@ class MainActivity : ComponentActivity() {
                     applyActionItemSpansToText(spannableMessage, structuredResponse.actionItems)
                     conversationHistory.append(spannableMessage)
                 } else {
-                    // Handle regular response - preserve streaming bullet formatting
-                    val formattedMessage = formatMessageWithCollapsibleJson(fullStreamingResponse)
+                    // Handle regular response - use the real-time streamed content as-is
+                    // No need to reconstruct since we're preserving the actual streamed display
                     
-                    // Reconstruct the streamed content with proper bullet formatting
-                    val streamedContent = reconstructStreamedBulletFormat(streamingChunks)
-                    val assistantMsg = "🤖 $streamedContent\n\n"
-                    
-                    // Add to new conversation messages list (use the formatted streamed content)
+                    // Add to new conversation messages list (use the actual streamed display)
                     val conversationMsg = ConversationMessage(
-                        text = streamedContent, // This preserves the bullet points and checkmarks
+                        text = streamedContent, // This preserves the actual real-time streamed formatting
                         isUser = false,
                         imageUri = null
                     )
                     conversationMessages.add(conversationMsg)
                     
                     // Add to legacy history
-                    conversationHistory.append(assistantMsg)
+                    conversationHistory.append("$streamedContent\n\n")
                 }
                 
-                Log.d(TAG, "Streaming content added to conversation history. New length: ${conversationHistory.length}")
+                Log.i(TAG, "✅ REAL-TIME STREAMING PRESERVED:")
+                Log.i(TAG, "   🔄 Used actual streamed display instead of combining chunks")
+                Log.i(TAG, "   💾 Conversation history updated with streamed content")
+                Log.i(TAG, "   📊 New conversation history length: ${conversationHistory.length}")
                 
                 // Clean up streaming state
                 val totalChunks = streamingChunks.size
