@@ -1035,7 +1035,7 @@ class MainActivity : ComponentActivity() {
                 conversationScrollView.smoothScrollTo(0, contentHeight - scrollViewHeight + 50)
             }, 800)
             
-            Log.d(TAG, "🔄 Comprehensive scroll to response end initiated")
+            // Comprehensive scroll to response end initiated (removed noisy logging)
         }
     }
 
