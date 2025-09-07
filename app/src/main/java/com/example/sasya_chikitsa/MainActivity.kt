@@ -1078,17 +1078,88 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Helper method to show typing indicator - ONLY appends, never reconstructs
+    // Helper method to show engaging progress indicator - keeps users engaged during AI processing
     private fun showTypingIndicator() {
         runOnUiThread {
-            // Simply append typing indicator to existing text without touching conversationHistory
-            if (!responseTextView.text.toString().endsWith("🤖 typing...\n")) {
-                responseTextView.append("🤖 typing...\n")
+            Log.d(TAG, "🎯 Starting engaging progress indicator for plant analysis")
+            
+            // Remove any existing indicator first
+            val currentText = responseTextView.text.toString()
+            if (currentText.contains("🤖 typing")) {
+                val lines = currentText.split("\n").toMutableList()
+                // Remove typing lines
+                lines.removeAll { it.contains("typing") || it.contains("⚡") || it.contains("🧠") }
+                responseTextView.text = lines.joinToString("\n")
             }
             
-            // Enhanced scroll to show typing indicator
+            // Add engaging plant analysis header
+            responseTextView.append("🤖 Sasya Chikitsa AI Analyzing...\n")
+            responseTextView.append("🌱 Examining your plant health\n")
+            responseTextView.append("🔍 Running disease detection algorithms\n")
+            
+            // Start animated progress dots
+            startProgressAnimation()
+            
+            // Enhanced scroll to show indicator
             scrollToResponseEnd()
         }
+    }
+    
+    private fun startProgressAnimation() {
+        // Create animated progress indicator to keep users engaged
+        val progressRunnable = object : Runnable {
+            private var dotCount = 0
+            private var progressStep = 0
+            
+            override fun run() {
+                // Stop animation if streaming has started
+                if (isCurrentlyStreaming) {
+                    Log.d(TAG, "🛑 Stopping progress animation - streaming started")
+                    return
+                }
+                
+                runOnUiThread {
+                    val currentText = responseTextView.text.toString()
+                    
+                    // Remove previous progress line if exists
+                    val lines = currentText.split("\n").toMutableList()
+                    if (lines.isNotEmpty() && (lines.last().startsWith("⚡") || lines.last().startsWith("🧠") || lines.last().startsWith("🔬"))) {
+                        lines.removeAt(lines.size - 1)
+                        if (lines.isNotEmpty() && lines.last().isEmpty()) {
+                            lines.removeAt(lines.size - 1)
+                        }
+                    }
+                    
+                    // Create animated progress with agricultural context
+                    val dots = ".".repeat((dotCount % 4) + 1)
+                    val progressTexts = arrayOf(
+                        "⚡ Preprocessing plant image$dots",
+                        "🧠 CNN neural network analyzing$dots", 
+                        "🔬 Detecting disease symptoms$dots",
+                        "📊 Calculating confidence levels$dots",
+                        "💊 Preparing treatment recommendations$dots",
+                        "🌱 Finalizing plant diagnosis$dots"
+                    )
+                    
+                    val progressText = progressTexts[progressStep % progressTexts.size]
+                    lines.add(progressText)
+                    
+                    responseTextView.text = lines.joinToString("\n") + "\n"
+                    scrollToResponseEnd()
+                    
+                    dotCount++
+                    if (dotCount % 4 == 0) {
+                        progressStep++
+                    }
+                    
+                    // Continue animation every 400ms for smooth progress feel
+                    responseTextView.postDelayed(this, 400)
+                }
+            }
+        }
+        
+        // Start the animation after a small delay
+        responseTextView.postDelayed(progressRunnable, 200)
     }
 
     // Helper method to remove typing indicator - restores from conversationHistory
@@ -1451,13 +1522,19 @@ class MainActivity : ComponentActivity() {
                                             addStreamingChunk(actualData)
                                         }
                                         
-                                        // Add delay between chunks to make streaming visible
-                                        // This prevents chunks from appearing instantaneously all at once
-                                        delay(150) // 150ms delay for natural streaming feel
+                                        // Force immediate UI update by flushing the display
+                                        // This ensures each chunk appears individually
+                                        withContext(Dispatchers.Main) {
+                                            responseTextView.invalidate()
+                                            responseTextView.requestLayout()
+                                        }
                                         
-                                        Log.i(TAG, "✅ CHUNK PROCESSING COMPLETE (with 150ms delay)")
-                                        Log.i(TAG, "   📱 Chunk sent to UI thread for display")
-                                        Log.i(TAG, "   ⏱️ Waiting 150ms before next chunk for streaming effect")
+                                        // Add delay between chunks to make streaming visible
+                                        delay(300) // Increased delay for more visible streaming effect
+                                        
+                                        Log.i(TAG, "✅ CHUNK PROCESSING COMPLETE (with 300ms delay + UI flush)")
+                                        Log.i(TAG, "   📱 Chunk displayed and UI refreshed")
+                                        Log.i(TAG, "   ⏱️ Waiting 300ms before next chunk for visible streaming")
                                     } else {
                                         Log.w(TAG, "⚠️  Empty actualData received, skipping display")
                                     }
@@ -1477,13 +1554,19 @@ class MainActivity : ComponentActivity() {
                                         addStreamingChunk(currentLine)
                                     }
                                     
-                                    // Add delay between chunks to make streaming visible
-                                    // This prevents chunks from appearing instantaneously all at once
-                                    delay(150) // 150ms delay for natural streaming feel
+                                    // Force immediate UI update by flushing the display
+                                    // This ensures each chunk appears individually
+                                    withContext(Dispatchers.Main) {
+                                        responseTextView.invalidate()
+                                        responseTextView.requestLayout()
+                                    }
                                     
-                                    Log.i(TAG, "✅ PLAIN TEXT CHUNK PROCESSED (with 150ms delay)")
-                                    Log.i(TAG, "   📱 Chunk sent to UI thread for display")
-                                    Log.i(TAG, "   ⏱️ Waiting 150ms before next chunk for streaming effect")
+                                    // Add delay between chunks to make streaming visible
+                                    delay(300) // Increased delay for more visible streaming effect
+                                    
+                                    Log.i(TAG, "✅ PLAIN TEXT CHUNK PROCESSED (with 300ms delay + UI flush)")
+                                    Log.i(TAG, "   📱 Chunk displayed and UI refreshed")
+                                    Log.i(TAG, "   ⏱️ Waiting 300ms before next chunk for visible streaming")
                                 }
                             }
                             

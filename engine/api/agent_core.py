@@ -951,21 +951,21 @@ class AgentCore:
             outputs.append(chunk1)
             if emitter:
                 emitter(chunk1)
-                await asyncio.sleep(0.5)  # Shorter delay for testing
+                await asyncio.sleep(1.0)  # Longer delay for visible streaming
             
             # Step 2: Preparation
             chunk2 = "Preparing image for neural network analysis..."
             outputs.append(chunk2)
             if emitter:
                 emitter(chunk2)
-                await asyncio.sleep(0.3)  # Shorter delay for testing
+                await asyncio.sleep(0.8)  # Longer delay for visible streaming
             
             # Step 3: CNN inference start
             chunk3 = "Running CNN model inference..."
             outputs.append(chunk3)
             if emitter:
                 emitter(chunk3)
-                await asyncio.sleep(0.3)  # Shorter delay for testing
+                await asyncio.sleep(0.8)  # Longer delay for visible streaming
             
             # Step 4: Actual CNN prediction (synchronous operation)
             logger.info("🧠 Running actual CNN prediction...")
@@ -979,14 +979,14 @@ class AgentCore:
             outputs.append(chunk4)
             if emitter:
                 emitter(chunk4)
-                await asyncio.sleep(0.3)  # Shorter delay for testing
+                await asyncio.sleep(0.8)  # Longer delay for visible streaming
             
             # Step 6: Finalization
             chunk5 = "Finalizing diagnosis..."
             outputs.append(chunk5)
             if emitter:
                 emitter(chunk5)
-                await asyncio.sleep(0.3)  # Shorter delay for testing
+                await asyncio.sleep(1.0)  # Longer delay before final result
             
             # Step 7: Final result from CNN prediction
             if prediction_chunks:
@@ -997,9 +997,9 @@ class AgentCore:
             outputs.append(final_chunk)
             if emitter:
                 emitter(final_chunk)
-                await asyncio.sleep(0.2)  # Short delay after final chunk
+                await asyncio.sleep(0.5)  # Final delay after diagnosis
             
-            logger.info("✅ Streaming image classification completed")
+            logger.info("✅ Streaming image classification completed with visible delays")
             return "\n".join(outputs)
             
         except Exception as e:

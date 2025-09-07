@@ -274,9 +274,9 @@ class AgentAPI:
                         yield chunk
                         queue.task_done()
                         
-                        # Add small delay between chunks to ensure real-time streaming
-                        # This respects the delays set in agent_core._stream_image_classification
-                        await asyncio.sleep(0.1)
+                        # Add significant delay between chunks to ensure visible streaming
+                        # This creates natural progression that users can follow
+                        await asyncio.sleep(0.5)  # Increased from 0.1 to 0.5 seconds
                         
                         if task.done() and queue.empty():
                             break
