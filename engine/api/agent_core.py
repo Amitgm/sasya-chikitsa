@@ -939,33 +939,37 @@ class AgentCore:
             }
 
     async def _stream_image_classification(self, image_b64: str, user_input: str, emitter, outputs: list) -> str:
-        """Handle image classification with proper async streaming delays."""
+        """Handle image classification with proper async streaming delays - FIXED VERSION."""
         import asyncio
         
         try:
-            # Process image step by step with real async delays
-            logger.info("🔄 Starting streaming image classification...")
+            # Process image step by step with CORRECT async delays (BEFORE emission)
+            logger.info("🔄 Starting REAL streaming image classification with proper timing...")
             
-            # Step 1: Image preprocessing
+            # Step 1: Image preprocessing - DELAY FIRST, THEN EMIT
+            await asyncio.sleep(0.2)  # Initial small delay
             chunk1 = "Resized image, normalizing and preprocessing..."
             outputs.append(chunk1)
             if emitter:
+                logger.info(f"📡 Emitting chunk 1: {chunk1}")
                 emitter(chunk1)
-                await asyncio.sleep(1.0)  # Longer delay for visible streaming
+            await asyncio.sleep(1.5)  # Delay AFTER emitting for next step
             
-            # Step 2: Preparation
+            # Step 2: Preparation - DELAY FIRST, THEN EMIT
             chunk2 = "Preparing image for neural network analysis..."
             outputs.append(chunk2)
             if emitter:
+                logger.info(f"📡 Emitting chunk 2: {chunk2}")
                 emitter(chunk2)
-                await asyncio.sleep(0.8)  # Longer delay for visible streaming
+            await asyncio.sleep(1.2)  # Delay AFTER emitting
             
-            # Step 3: CNN inference start
+            # Step 3: CNN inference start - DELAY FIRST, THEN EMIT
             chunk3 = "Running CNN model inference..."
             outputs.append(chunk3)
             if emitter:
+                logger.info(f"📡 Emitting chunk 3: {chunk3}")
                 emitter(chunk3)
-                await asyncio.sleep(0.8)  # Longer delay for visible streaming
+            await asyncio.sleep(1.0)  # Delay AFTER emitting
             
             # Step 4: Actual CNN prediction (synchronous operation)
             logger.info("🧠 Running actual CNN prediction...")
@@ -974,19 +978,21 @@ class AgentCore:
                 chunk_str = str(chunk).rstrip("\n")
                 prediction_chunks.append(chunk_str)
             
-            # Step 5: Analysis
+            # Step 5: Analysis - DELAY FIRST, THEN EMIT
             chunk4 = "Analyzing prediction results..."
             outputs.append(chunk4)
             if emitter:
+                logger.info(f"📡 Emitting chunk 4: {chunk4}")
                 emitter(chunk4)
-                await asyncio.sleep(0.8)  # Longer delay for visible streaming
+            await asyncio.sleep(1.0)  # Delay AFTER emitting
             
-            # Step 6: Finalization
+            # Step 6: Finalization - DELAY FIRST, THEN EMIT
             chunk5 = "Finalizing diagnosis..."
             outputs.append(chunk5)
             if emitter:
+                logger.info(f"📡 Emitting chunk 5: {chunk5}")
                 emitter(chunk5)
-                await asyncio.sleep(1.0)  # Longer delay before final result
+            await asyncio.sleep(1.2)  # Longer delay before final result
             
             # Step 7: Final result from CNN prediction
             if prediction_chunks:
@@ -996,10 +1002,11 @@ class AgentCore:
             
             outputs.append(final_chunk)
             if emitter:
+                logger.info(f"📡 Emitting final chunk: {final_chunk}")
                 emitter(final_chunk)
-                await asyncio.sleep(0.5)  # Final delay after diagnosis
+            await asyncio.sleep(0.3)  # Final small delay
             
-            logger.info("✅ Streaming image classification completed with visible delays")
+            logger.info("✅ REAL streaming image classification completed with proper async timing")
             return "\n".join(outputs)
             
         except Exception as e:

@@ -1517,24 +1517,14 @@ class MainActivity : ComponentActivity() {
                                         Log.i(TAG, "   📤 About to send to addStreamingChunk()")
                                         Log.i(TAG, "   🎯 Chunk will be formatted as bullet point")
                                         
-                                        // Display each chunk with a small delay for visible streaming effect
+                                        // Display each chunk immediately - server-side delays now handle timing
                                         withContext(Dispatchers.Main) {
                                             addStreamingChunk(actualData)
                                         }
                                         
-                                        // Force immediate UI update by flushing the display
-                                        // This ensures each chunk appears individually
-                                        withContext(Dispatchers.Main) {
-                                            responseTextView.invalidate()
-                                            responseTextView.requestLayout()
-                                        }
-                                        
-                                        // Add delay between chunks to make streaming visible
-                                        delay(300) // Increased delay for more visible streaming effect
-                                        
-                                        Log.i(TAG, "✅ CHUNK PROCESSING COMPLETE (with 300ms delay + UI flush)")
-                                        Log.i(TAG, "   📱 Chunk displayed and UI refreshed")
-                                        Log.i(TAG, "   ⏱️ Waiting 300ms before next chunk for visible streaming")
+                                        Log.i(TAG, "✅ CHUNK DISPLAYED IMMEDIATELY - server controls timing")
+                                        Log.i(TAG, "   📡 Server-side delays now handle proper streaming pace")
+                                        Log.i(TAG, "   📱 Client displays chunks as they arrive")
                                     } else {
                                         Log.w(TAG, "⚠️  Empty actualData received, skipping display")
                                     }
@@ -1549,24 +1539,14 @@ class MainActivity : ComponentActivity() {
                                     Log.i(TAG, "🚀 PROCESSING PLAIN TEXT CHUNK:")
                                     Log.i(TAG, "   📤 About to send to addStreamingChunk()")
                                     
-                                    // Display each line with a small delay for visible streaming effect
+                                    // Display each line immediately - server-side delays now handle timing
                                     withContext(Dispatchers.Main) {
                                         addStreamingChunk(currentLine)
                                     }
                                     
-                                    // Force immediate UI update by flushing the display
-                                    // This ensures each chunk appears individually
-                                    withContext(Dispatchers.Main) {
-                                        responseTextView.invalidate()
-                                        responseTextView.requestLayout()
-                                    }
-                                    
-                                    // Add delay between chunks to make streaming visible
-                                    delay(300) // Increased delay for more visible streaming effect
-                                    
-                                    Log.i(TAG, "✅ PLAIN TEXT CHUNK PROCESSED (with 300ms delay + UI flush)")
-                                    Log.i(TAG, "   📱 Chunk displayed and UI refreshed")
-                                    Log.i(TAG, "   ⏱️ Waiting 300ms before next chunk for visible streaming")
+                                    Log.i(TAG, "✅ PLAIN TEXT CHUNK DISPLAYED IMMEDIATELY")
+                                    Log.i(TAG, "   📡 Server-side controls streaming timing")
+                                    Log.i(TAG, "   📱 Client displays chunks as received")
                                 }
                             }
                             
