@@ -20,6 +20,7 @@ import android.text.style.UnderlineSpan
 import android.text.style.StyleSpan
 import android.graphics.Typeface
 import android.view.View
+import android.view.ViewTreeObserver
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -288,6 +289,9 @@ class MainActivity : ComponentActivity() {
         
         Log.d(TAG, "Added assistant message. Total messages: ${conversationMessages.size}")
         updateConversationDisplay()
+        
+        // Ensure user can see the complete response
+        scrollToResponseEnd()
     }
     
     // Helper method to create a user message view with optional image (aligned right, WhatsApp-style)
@@ -734,6 +738,9 @@ class MainActivity : ComponentActivity() {
         Log.d(TAG, "After adding structured assistant message. New length: ${conversationHistory.length}")
         
         updateConversationDisplay()
+        
+        // Ensure user can see the complete response including action items
+        scrollToResponseEnd()
     }
 
     // Helper method to apply action item spans to a specific text
@@ -980,6 +987,57 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Robust scrolling method to ensure user sees the complete response
+     * Uses multiple approaches and timing to guarantee scroll to bottom
+     */
+    private fun scrollToResponseEnd() {
+        runOnUiThread {
+            // Method 1: Immediate scroll attempt
+            conversationScrollView.post {
+                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+            }
+            
+            // Method 2: Wait for layout and scroll to actual bottom
+            conversationScrollView.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    conversationScrollView.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    
+                    // Calculate the actual bottom position
+                    val scrollViewHeight = conversationScrollView.height
+                    val contentHeight = conversationContainer.height + responseTextView.height
+                    val targetScrollY = maxOf(0, contentHeight - scrollViewHeight + 100) // +100px padding
+                    
+                    // Smooth scroll to the calculated position
+                    conversationScrollView.smoothScrollTo(0, targetScrollY)
+                    
+                    // Backup: Force full scroll after smooth scroll
+                    conversationScrollView.postDelayed({
+                        conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                    }, 300)
+                }
+            })
+            
+            // Method 3: Aggressive backup scrolling with multiple delays
+            conversationScrollView.postDelayed({
+                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+            }, 150)
+            
+            conversationScrollView.postDelayed({
+                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+            }, 500)
+            
+            // Method 4: Final fallback scroll
+            conversationScrollView.postDelayed({
+                val scrollViewHeight = conversationScrollView.height
+                val contentHeight = conversationScrollView.getChildAt(0).height
+                conversationScrollView.smoothScrollTo(0, contentHeight - scrollViewHeight + 50)
+            }, 800)
+            
+            Log.d(TAG, "🔄 Comprehensive scroll to response end initiated")
+        }
+    }
+
     // Helper method to update conversation display and scroll to bottom
     private fun updateConversationDisplay() {
         runOnUiThread {
@@ -1014,16 +1072,8 @@ class MainActivity : ComponentActivity() {
             // Force layout update
             responseTextView.requestLayout()
             
-            // Enhanced scroll to bottom with proper timing for ScrollView
-            conversationScrollView.post {
-                conversationScrollView.postDelayed({
-                    conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
-                }, 100)
-                
-                conversationScrollView.postDelayed({
-                    conversationScrollView.smoothScrollTo(0, responseTextView.bottom)
-                }, 200)
-            }
+            // Enhanced scroll to bottom - ensure user sees complete response
+            scrollToResponseEnd()
         }
     }
 
@@ -1036,12 +1086,7 @@ class MainActivity : ComponentActivity() {
             }
             
             // Enhanced scroll to show typing indicator
-            conversationScrollView.post {
-                conversationScrollView.smoothScrollTo(0, responseTextView.bottom)
-            }
-            conversationScrollView.postDelayed({
-                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
-            }, 50)
+            scrollToResponseEnd()
         }
     }
 
@@ -1122,11 +1167,9 @@ class MainActivity : ComponentActivity() {
             
             Log.i(TAG, "   📱 Added to responseTextView display")
             
-            // Auto-scroll to show new content
-            conversationScrollView.post {
-                conversationScrollView.smoothScrollTo(0, responseTextView.bottom)
-                Log.d(TAG, "   📜 Auto-scrolled to show new content")
-            }
+            // Auto-scroll to show new content with robust scrolling
+            scrollToResponseEnd()
+            Log.d(TAG, "   📜 Auto-scrolled to show new content")
             
             Log.i(TAG, "✅ STREAMING CHUNK PROCESSED SUCCESSFULLY")
             Log.i(TAG, "   📊 Updated total chunks: ${streamingChunks.size}")
@@ -1253,6 +1296,9 @@ class MainActivity : ComponentActivity() {
                 
                 // Now update conversation display with the new message
                 updateConversationDisplay()
+                
+                // Ensure user can see the complete response with robust scrolling
+                scrollToResponseEnd()
                 
                 Log.i(TAG, "🧹 STREAMING STATE CLEANUP COMPLETE:")
                 Log.i(TAG, "   ✅ Processed ${totalChunks} chunks total")
