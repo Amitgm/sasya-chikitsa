@@ -1078,6 +1078,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Helper method to show immediate server activity indicator
+    private fun showServerActivityIndicator() {
+        runOnUiThread {
+            Log.d(TAG, "🔄 Showing immediate server activity indicator")
+            
+            // Simply append immediate server activity indicator  
+            responseTextView.append("🤖 Sasya Chikitsa AI Agent Typing...\n")
+            
+            // Scroll to show indicator
+            scrollToResponseEnd()
+        }
+    }
+
     // Helper method to show engaging progress indicator - keeps users engaged during AI processing
     private fun showTypingIndicator() {
         runOnUiThread {
@@ -1165,10 +1178,31 @@ class MainActivity : ComponentActivity() {
     // Helper method to remove typing indicator - restores from conversationHistory
     private fun removeTypingIndicator() {
         runOnUiThread {
-            Log.d(TAG, "Removing typing indicator. Restoring from history length: ${conversationHistory.length}")
-            // Only restore from conversationHistory, never reconstruct
-            responseTextView.text = conversationHistory.toString()
-            Log.d(TAG, "Typing indicator removed. TextView length: ${responseTextView.text.length}")
+            Log.d(TAG, "🧹 Removing all typing/progress indicators")
+            
+            // Remove any typing-related text including "Sasya Chikitsa AI Agent Typing..."
+            val currentText = responseTextView.text.toString()
+            val lines = currentText.split("\n").toMutableList()
+            
+            // Remove typing, progress, and analysis indicators
+            lines.removeAll { line ->
+                line.contains("Typing...") || 
+                line.contains("typing") || 
+                line.contains("⚡") || 
+                line.contains("🧠") || 
+                line.contains("🔬") || 
+                line.contains("📊") || 
+                line.contains("💊") || 
+                line.contains("🌱") ||
+                line.contains("Analyzing...") ||
+                line.contains("Examining") ||
+                line.contains("Sasya Chikitsa AI Agent Typing")
+            }
+            
+            // Restore clean text
+            responseTextView.text = lines.joinToString("\n")
+            
+            Log.d(TAG, "✅ All typing/progress indicators removed. Clean text restored.")
         }
     }
 
@@ -1460,7 +1494,7 @@ class MainActivity : ComponentActivity() {
         sessionId: String?
         // text: String? // Add if required in ChatRequestData
     ) {
-        showTypingIndicator() // Show typing indicator instead of overwriting
+        showServerActivityIndicator() // Show immediate server activity indicator
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val requestData = ChatRequestData(
