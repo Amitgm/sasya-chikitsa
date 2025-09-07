@@ -76,7 +76,7 @@
                     android:id="@+id/serverStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="📡 Server: Android Emulator"
+                    android:text="Server : Sasya-Chikitsa"
                     android:textSize="10sp"
                     android:textColor="#4299E1"
                     android:textStyle="italic"/>
