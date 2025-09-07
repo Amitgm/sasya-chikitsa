@@ -38,6 +38,7 @@ import com.example.sasya_chikitsa.network.RetrofitClient // Import Retrofit clie
 import com.example.sasya_chikitsa.config.ServerConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -1114,13 +1115,16 @@ class MainActivity : ComponentActivity() {
      */
     private fun addStreamingChunk(chunk: String) {
         runOnUiThread {
-            // 📊 ENHANCED LOGGING - Track streaming chunks
-            Log.i(TAG, "🔥 STREAMING CHUNK RECEIVED:")
+            val currentTime = System.currentTimeMillis()
+            
+            // 📊 ENHANCED LOGGING - Track streaming chunks with precise timing
+            Log.i(TAG, "🔥 STREAMING CHUNK RECEIVED FOR DISPLAY:")
             Log.i(TAG, "   📦 Chunk content: '$chunk'")
             Log.i(TAG, "   📊 Chunk length: ${chunk.length} characters")
-            Log.i(TAG, "   ⏰ Timestamp: ${System.currentTimeMillis()}")
+            Log.i(TAG, "   ⏰ Display timestamp: $currentTime")
             Log.i(TAG, "   🔄 Currently streaming: $isCurrentlyStreaming")
             Log.i(TAG, "   📈 Total chunks so far: ${streamingChunks.size}")
+            Log.i(TAG, "   🎯 About to display this chunk individually")
             
             if (!isCurrentlyStreaming) {
                 // Starting new streaming - clear any typing indicator
@@ -1165,7 +1169,9 @@ class MainActivity : ComponentActivity() {
                 Log.i(TAG, "   💡 Formatted as regular bullet point: '$bulletPointChunk'")
             }
             
-            Log.i(TAG, "   📱 Added to responseTextView display")
+            Log.i(TAG, "   📱 CHUNK DISPLAYED ON SCREEN")
+            Log.i(TAG, "   ⏰ Screen display time: ${System.currentTimeMillis()}")
+            Log.i(TAG, "   ✅ Individual chunk streaming successful")
             
             // Auto-scroll to show new content with robust scrolling
             scrollToResponseEnd()
@@ -1440,13 +1446,18 @@ class MainActivity : ComponentActivity() {
                                         Log.i(TAG, "   📤 About to send to addStreamingChunk()")
                                         Log.i(TAG, "   🎯 Chunk will be formatted as bullet point")
                                         
-                                        // Display each chunk immediately on UI thread
+                                        // Display each chunk with a small delay for visible streaming effect
                                         withContext(Dispatchers.Main) {
                                             addStreamingChunk(actualData)
                                         }
                                         
-                                        Log.i(TAG, "✅ CHUNK PROCESSING COMPLETE")
+                                        // Add delay between chunks to make streaming visible
+                                        // This prevents chunks from appearing instantaneously all at once
+                                        delay(150) // 150ms delay for natural streaming feel
+                                        
+                                        Log.i(TAG, "✅ CHUNK PROCESSING COMPLETE (with 150ms delay)")
                                         Log.i(TAG, "   📱 Chunk sent to UI thread for display")
+                                        Log.i(TAG, "   ⏱️ Waiting 150ms before next chunk for streaming effect")
                                     } else {
                                         Log.w(TAG, "⚠️  Empty actualData received, skipping display")
                                     }
@@ -1461,12 +1472,18 @@ class MainActivity : ComponentActivity() {
                                     Log.i(TAG, "🚀 PROCESSING PLAIN TEXT CHUNK:")
                                     Log.i(TAG, "   📤 About to send to addStreamingChunk()")
                                     
-                                    // Display each line immediately on UI thread
+                                    // Display each line with a small delay for visible streaming effect
                                     withContext(Dispatchers.Main) {
                                         addStreamingChunk(currentLine)
                                     }
                                     
-                                    Log.i(TAG, "✅ PLAIN TEXT CHUNK PROCESSED")
+                                    // Add delay between chunks to make streaming visible
+                                    // This prevents chunks from appearing instantaneously all at once
+                                    delay(150) // 150ms delay for natural streaming feel
+                                    
+                                    Log.i(TAG, "✅ PLAIN TEXT CHUNK PROCESSED (with 150ms delay)")
+                                    Log.i(TAG, "   📱 Chunk sent to UI thread for display")
+                                    Log.i(TAG, "   ⏱️ Waiting 150ms before next chunk for streaming effect")
                                 }
                             }
                             
