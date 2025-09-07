@@ -67,9 +67,21 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var responseTextView: TextView // TextView to show stream output
     private lateinit var conversationScrollView: ScrollView // ScrollView for conversation
+    private lateinit var conversationContainer: LinearLayout // Container for individual messages
 
     private var selectedImageUri: Uri? = null
     private var conversationHistory = SpannableStringBuilder() // Store conversation history with formatting
+    
+    // Data class for conversation messages with images
+    data class ConversationMessage(
+        val text: String,
+        val isUser: Boolean,
+        val imageUri: Uri? = null,
+        val timestamp: Long = System.currentTimeMillis()
+    )
+    
+    // List to store conversation messages with images
+    private val conversationMessages = mutableListOf<ConversationMessage>()
 
     private val TAG = "MainActivity" // For logging
     
@@ -107,6 +119,7 @@ class MainActivity : ComponentActivity() {
         settingsBtn = findViewById(R.id.settingsBtn)
         responseTextView = findViewById(R.id.responseTextView)
         conversationScrollView = findViewById(R.id.conversationScrollView)
+        conversationContainer = findViewById(R.id.conversationContainer)
         
         // Update server status display
         updateServerStatusDisplay()
@@ -164,12 +177,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Add user message to conversation history
+            // Add user message to conversation history with image
             if (message.isNotEmpty()) {
-                addUserMessage(message, currentImageUri != null)
+                addUserMessageWithImage(message, currentImageUri)
 //                Toast.makeText(this, "Message sent: $message", Toast.LENGTH_SHORT).show()
             } else if (currentImageUri != null) {
-                addUserMessage("Image", true)
+                addUserMessageWithImage("Image", currentImageUri)
 //                Toast.makeText(this, "Image sent", Toast.LENGTH_SHORT).show()
             }
 
@@ -179,10 +192,10 @@ class MainActivity : ComponentActivity() {
             // Fetch the stream
             fetchChatStreamFromServer(message, imageBase64, sessionId)
             
-                // Clear the image after sending (one-time use) - silently
-                if (currentImageUri != null) {
-                    clearSelectedImage(showToast = false)
-                }
+            // Clear the upload preview but keep image in conversation history
+            if (currentImageUri != null) {
+                clearSelectedImage(showToast = false)
+            }
             } catch (e: Exception) {
                 Log.e(TAG, "Error in send button logic", e)
                 Toast.makeText(this, "Error sending message: ${e.message}", Toast.LENGTH_LONG).show()
@@ -223,6 +236,25 @@ class MainActivity : ComponentActivity() {
         
         updateConversationDisplay()
     }
+    
+    // Enhanced helper method to add user message with image support
+    private fun addUserMessageWithImage(message: String, imageUri: Uri?) {
+        // Add to new conversation messages list
+        val conversationMsg = ConversationMessage(
+            text = message,
+            isUser = true,
+            imageUri = imageUri
+        )
+        conversationMessages.add(conversationMsg)
+        
+        // Also add to legacy text-based history for compatibility
+        val imageIndicator = if (imageUri != null) " 📷" else ""
+        val userMsg = "👤 $message$imageIndicator\n\n"
+        conversationHistory.append(userMsg)
+        
+        Log.d(TAG, "Added user message with image. Total messages: ${conversationMessages.size}")
+        updateConversationDisplay()
+    }
 
     // Helper method to add assistant message to conversation
     private fun addAssistantMessage(message: String) {
@@ -234,14 +266,395 @@ class MainActivity : ComponentActivity() {
             addStructuredAssistantMessage(structuredResponse.mainAnswer, structuredResponse.actionItems)
         } else {
             // Handle regular unstructured response
-            val formattedMessage = formatMessageWithCollapsibleJson(message)
-            val assistantMsg = "🤖 $formattedMessage\n\n"
+            addAssistantMessageToConversation(message)
+        }
+    }
+    
+    // Enhanced helper method to add assistant message to new conversation structure
+    private fun addAssistantMessageToConversation(message: String) {
+        val formattedMessage = formatMessageWithCollapsibleJson(message)
+        
+        // Add to new conversation messages list
+        val conversationMsg = ConversationMessage(
+            text = formattedMessage,
+            isUser = false,
+            imageUri = null
+        )
+        conversationMessages.add(conversationMsg)
+        
+        // Also add to legacy text-based history for compatibility
+        val assistantMsg = "🤖 $formattedMessage\n\n"
+        conversationHistory.append(assistantMsg)
+        
+        Log.d(TAG, "Added assistant message. Total messages: ${conversationMessages.size}")
+        updateConversationDisplay()
+    }
+    
+    // Helper method to create a user message view with optional image (aligned right, WhatsApp-style)
+    private fun createUserMessageView(message: ConversationMessage): View {
+        // Calculate width for WhatsApp-like chat bubble (75% max width, but can be smaller for short messages)
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val maxCardWidth = (screenWidth * 0.75).toInt()
+        val minCardWidth = (screenWidth * 0.3).toInt()
+        val rightMargin = 16
+        val leftMargin = (screenWidth * 0.2).toInt() // More space on left to push right
+        
+        val messageCard = androidx.cardview.widget.CardView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, // Let it size based on content
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(leftMargin, 8, rightMargin, 8) // Reduced vertical margins for tighter spacing
+                gravity = android.view.Gravity.END // Align to right
+                
+                // Set max width constraint
+                width = LinearLayout.LayoutParams.WRAP_CONTENT
+            }
+            radius = 18f // WhatsApp-like rounded corners
+            cardElevation = 2f // Subtle shadow like WhatsApp
+            setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.user_message_bg))
+        }
+        
+        val messageLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 12, 16, 12) // WhatsApp-like padding
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                // Set width constraints based on content type
+                if (message.imageUri != null) {
+                    // Messages with images get more consistent width
+                    width = maxCardWidth - 32 // Account for padding
+                }
+                // Text-only messages use WRAP_CONTENT naturally
+            }
+        }
+        
+        // Add header with icon and "Human" label
+        val headerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 8) // Space between header and content
+        }
+        
+        val headerText = TextView(this).apply {
+            text = "👤 Human"
+            textSize = 14f // Smaller header text
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        headerLayout.addView(headerText)
+        messageLayout.addView(headerLayout)
+        
+        // Add message text if not empty
+        if (message.text.isNotEmpty()) {
+            val textView = TextView(this).apply {
+                text = message.text // Clean text without emoji (header has it)
+                textSize = 16f // Standard message text size
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
+                setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
+                typeface = android.graphics.Typeface.DEFAULT
+                
+                // Make text wrap nicely
+                maxWidth = maxCardWidth - 64 // Account for padding and margins
+            }
+            messageLayout.addView(textView)
+        }
+        
+        // Add image if present (WhatsApp-style image sizing)
+        if (message.imageUri != null) {
+            val imageView = ImageView(this).apply {
+                val imageSize = minOf(maxCardWidth - 32, 280) // Max 280dp like WhatsApp, account for padding
+                layoutParams = LinearLayout.LayoutParams(
+                    imageSize,
+                    imageSize
+                ).apply {
+                    setMargins(0, if (message.text.isNotEmpty()) 8 else 0, 0, 0) // Space from text if both exist
+                }
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setImageURI(message.imageUri)
+                
+                // WhatsApp-like rounded corner background
+                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.modern_card_background)
+                clipToOutline = true
+            }
+            messageLayout.addView(imageView)
+        }
+        
+        messageCard.addView(messageLayout)
+        return messageCard
+    }
+    
+    // Helper method to create an assistant message view (aligned left, WhatsApp-style)
+    private fun createAssistantMessageView(message: ConversationMessage): View {
+        // Calculate width for WhatsApp-like chat bubble (85% max width for longer AI responses)
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val maxCardWidth = (screenWidth * 0.85).toInt()
+        val leftMargin = 16
+        val rightMargin = (screenWidth * 0.1).toInt() // Less space on right to push left
+        
+        val messageCard = androidx.cardview.widget.CardView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(leftMargin, 8, rightMargin, 8) // Consistent spacing with user messages
+                gravity = android.view.Gravity.START // Align to left
+            }
+            radius = 18f // WhatsApp-like rounded corners
+            cardElevation = 2f // Subtle shadow like WhatsApp
+            setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_message_bg))
+        }
+        
+        val messageLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 12, 16, 12) // WhatsApp-like padding
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        
+        // Check if this is a structured response with action items
+        val structuredResponse = parseStructuredResponse(message.text)
+        
+        if (structuredResponse != null) {
+            // Handle structured response with separate formatting for main answer and action items
+            createStructuredAssistantView(messageLayout, structuredResponse)
+        } else {
+            // Handle regular response with bullet point formatting preserved
+            if (message.text.contains("📋 Recommended Actions:")) {
+                createStreamingActionItemsView(messageLayout, message.text)
+            } else {
+                // Add header with icon and "Sasya Chikitsa" label
+                val headerLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, 0, 0, 8) // Space between header and content
+                }
+                
+                val headerText = TextView(this).apply {
+                    text = "🤖 Sasya Chikitsa"
+                    textSize = 14f // Smaller header text
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+                headerLayout.addView(headerText)
+                messageLayout.addView(headerLayout)
+                
+                val textView = TextView(this).apply {
+                    // Clean text without emoji prefix (header has it)
+                    val displayText = message.text.removePrefix("🤖 ").trim()
+                    text = displayText
+                    textSize = 16f // Consistent with user messages
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+                    setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
+                    movementMethod = LinkMovementMethod.getInstance()
+                    
+                    // Constrain max width for better readability
+                    maxWidth = maxCardWidth - 64
+                }
+                messageLayout.addView(textView)
+            }
+        }
+        
+        messageCard.addView(messageLayout)
+        return messageCard
+    }
+    
+    // Helper method to create structured assistant view with clickable action items (WhatsApp-style)
+    private fun createStructuredAssistantView(messageLayout: LinearLayout, structuredResponse: StructuredResponse) {
+        // Add header with icon and "Sasya Chikitsa" label
+        val headerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 8) // Space between header and content
+        }
+        
+        val headerText = TextView(this).apply {
+            text = "🤖 Sasya Chikitsa"
+            textSize = 14f // Smaller header text
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        headerLayout.addView(headerText)
+        messageLayout.addView(headerLayout)
+        
+        // Main answer text with WhatsApp styling
+        val mainAnswerText = TextView(this).apply {
+            text = structuredResponse.mainAnswer // Clean text (header has icon)
+            textSize = 16f // Consistent with user messages
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+            setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
+        }
+        messageLayout.addView(mainAnswerText)
+        
+        // Action items section if they exist
+        if (structuredResponse.actionItems.isNotEmpty()) {
+            // Add spacing between main answer and actions
+            val spacing = LinearLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    12
+                ) // 12dp spacing like WhatsApp
+            }
+            messageLayout.addView(spacing)
             
-            Log.d(TAG, "Adding assistant message to history. Current length: ${conversationHistory.length}")
-            conversationHistory.append(assistantMsg)
-            Log.d(TAG, "After adding assistant message. New length: ${conversationHistory.length}")
+            // Action items header with better styling
+            val actionHeader = TextView(this).apply {
+                text = "📋 Quick Actions:"
+                textSize = 15f // Slightly smaller for section headers
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(0, 4, 0, 8) // WhatsApp-like spacing
+            }
+            messageLayout.addView(actionHeader)
             
-            updateConversationDisplay()
+            // Create clickable action items with WhatsApp-like styling
+            structuredResponse.actionItems.forEach { actionItem ->
+                val actionTextView = TextView(this).apply {
+                    val actionText = "• $actionItem"
+                    val spannableString = SpannableString(actionText)
+                    
+                    // Make the entire action item clickable
+                    val clickableSpan = object : ClickableSpan() {
+                        override fun onClick(view: View) {
+                            messageInput.setText(actionItem.trim())
+                            conversationScrollView.post {
+                                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                            }
+                            Toast.makeText(this@MainActivity, "Action added to input", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                    // Apply styling to make it look clickable
+                    spannableString.setSpan(clickableSpan, 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(
+                        ForegroundColorSpan(ContextCompat.getColor(this@MainActivity, R.color.action_item_color)), 
+                        0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    spannableString.setSpan(UnderlineSpan(), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(StyleSpan(android.graphics.Typeface.BOLD), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    
+                    text = spannableString
+                    textSize = 15f // WhatsApp-like action item size
+                    setLineSpacing(3f, 1.1f) // WhatsApp-like line spacing
+                    movementMethod = LinkMovementMethod.getInstance()
+                    setPadding(12, 6, 0, 6) // WhatsApp-like padding
+                }
+                messageLayout.addView(actionTextView)
+            }
+        }
+    }
+    
+    // Helper method to create streaming action items view (with checkmarks ✓)
+    private fun createStreamingActionItemsView(messageLayout: LinearLayout, messageText: String) {
+        // Add header with icon and "Sasya Chikitsa" label
+        val headerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 8) // Space between header and content
+        }
+        
+        val headerText = TextView(this).apply {
+            text = "🤖 Sasya Chikitsa"
+            textSize = 14f // Smaller header text
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        headerLayout.addView(headerText)
+        messageLayout.addView(headerLayout)
+        val lines = messageText.split("\n")
+        var inActionSection = false
+        val regularContent = mutableListOf<String>()
+        val actionItems = mutableListOf<String>()
+        
+        // Parse the message to separate regular content from action items
+        for (line in lines) {
+            when {
+                line.contains("📋 Recommended Actions:") -> {
+                    inActionSection = true
+                }
+                inActionSection && line.trim().startsWith("✓") -> {
+                    // Extract action item (remove the checkmark and whitespace)
+                    val actionText = line.trim().removePrefix("✓").trim()
+                    if (actionText.isNotEmpty()) {
+                        actionItems.add(actionText)
+                    }
+                }
+                !inActionSection && line.trim().isNotEmpty() -> {
+                    regularContent.add(line)
+                }
+            }
+        }
+        
+        // Display regular content (bullet points)
+        if (regularContent.isNotEmpty()) {
+            val regularText = TextView(this).apply {
+                // Clean content without emoji prefix (header has it)
+                val cleanContent = regularContent.joinToString("\n").removePrefix("🤖 ").trim()
+                text = cleanContent
+                textSize = 16f // Consistent with other messages
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+                setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
+            }
+            messageLayout.addView(regularText)
+        }
+        
+        // Display action items section if they exist
+        if (actionItems.isNotEmpty()) {
+            // Add WhatsApp-like spacing between content and actions
+            val spacing = LinearLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    12
+                ) // 12dp spacing like WhatsApp
+            }
+            messageLayout.addView(spacing)
+            
+            // Action items header with WhatsApp-like styling  
+            val actionHeader = TextView(this).apply {
+                text = "📋 Recommended Actions:"
+                textSize = 15f // Slightly smaller for section headers like WhatsApp
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(0, 4, 0, 8) // WhatsApp-like spacing
+            }
+            messageLayout.addView(actionHeader)
+            
+            // Create clickable action items with checkmarks
+            actionItems.forEach { actionItem ->
+                val actionTextView = TextView(this).apply {
+                    val actionText = "  ✓ $actionItem"
+                    val spannableString = SpannableString(actionText)
+                    
+                    // Make the action item clickable (skip the checkmark part)
+                    val clickableSpan = object : ClickableSpan() {
+                        override fun onClick(view: View) {
+                            messageInput.setText(actionItem.trim())
+                            conversationScrollView.post {
+                                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                            }
+                            Toast.makeText(this@MainActivity, "Action added to input", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                    // Apply styling to make it look clickable
+                    spannableString.setSpan(clickableSpan, 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(
+                        ForegroundColorSpan(ContextCompat.getColor(this@MainActivity, R.color.action_item_color)), 
+                        0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    spannableString.setSpan(UnderlineSpan(), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(StyleSpan(android.graphics.Typeface.BOLD), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    
+                    text = spannableString
+                    textSize = 15f // WhatsApp-like action item size
+                    setLineSpacing(3f, 1.1f) // WhatsApp-like line spacing
+                    movementMethod = LinkMovementMethod.getInstance()
+                    setPadding(12, 6, 0, 6) // WhatsApp-like padding
+                }
+                messageLayout.addView(actionTextView)
+            }
         }
     }
 
@@ -308,7 +721,15 @@ class MainActivity : ComponentActivity() {
         val spannableMessage = SpannableString(assistantMsg)
         applyActionItemSpansToText(spannableMessage, actionItems)
         
-        // Append to conversation history
+        // Add to new conversation messages list (convert SpannableString to String)
+        val conversationMsg = ConversationMessage(
+            text = spannableMessage.toString(),
+            isUser = false,
+            imageUri = null
+        )
+        conversationMessages.add(conversationMsg)
+        
+        // Append to legacy conversation history
         conversationHistory.append(spannableMessage)
         Log.d(TAG, "After adding structured assistant message. New length: ${conversationHistory.length}")
         
@@ -562,13 +983,33 @@ class MainActivity : ComponentActivity() {
     // Helper method to update conversation display and scroll to bottom
     private fun updateConversationDisplay() {
         runOnUiThread {
-            Log.d(TAG, "Updating conversation display. History length: ${conversationHistory.length}")
+            Log.d(TAG, "Updating conversation display. Messages: ${conversationMessages.size}")
             
-            // Set the spannable text directly to preserve existing formatting and spans
-            responseTextView.text = conversationHistory
-            responseTextView.movementMethod = LinkMovementMethod.getInstance()
+            // Clear existing conversation views (except welcome message)
+            if (conversationContainer.childCount > 1) {
+                conversationContainer.removeViews(1, conversationContainer.childCount - 1)
+            }
             
-            Log.d(TAG, "Display updated. TextView length: ${responseTextView.text.length}")
+            // Add each conversation message as a separate view
+            for (message in conversationMessages) {
+                val messageView = if (message.isUser) {
+                    createUserMessageView(message)
+                } else {
+                    createAssistantMessageView(message)
+                }
+                conversationContainer.addView(messageView)
+            }
+            
+            // Only update legacy TextView if NOT currently streaming to avoid wiping streaming content
+            if (!isCurrentlyStreaming) {
+                responseTextView.text = conversationHistory
+                responseTextView.movementMethod = LinkMovementMethod.getInstance()
+                Log.d(TAG, "Updated legacy TextView (not streaming)")
+            } else {
+                Log.d(TAG, "Skipping TextView update - streaming in progress")
+            }
+            
+            Log.d(TAG, "Display updated. Message views: ${conversationMessages.size}")
             
             // Force layout update
             responseTextView.requestLayout()
@@ -693,7 +1134,43 @@ class MainActivity : ComponentActivity() {
             Log.i(TAG, "   " + "=".repeat(50))
         }
     }
-
+    
+    // Helper method to reconstruct streaming bullet format from collected chunks
+    private fun reconstructStreamedBulletFormat(chunks: List<String>): String {
+        val result = StringBuilder()
+        var hasActionItems = false
+        
+        // First, check if we have any pipe-separated action items
+        val actionItemChunks = chunks.filter { isPipeSeperatedActionItems(it) }
+        val regularChunks = chunks.filter { !isPipeSeperatedActionItems(it) }
+        
+        // Add regular bullet points first
+        if (regularChunks.isNotEmpty()) {
+            regularChunks.forEach { chunk ->
+                result.append("  • $chunk\n")
+            }
+        }
+        
+        // Add action items with special formatting
+        if (actionItemChunks.isNotEmpty()) {
+            if (result.isNotEmpty()) {
+                result.append("\n") // Add spacing before action items
+            }
+            result.append("📋 Recommended Actions:\n")
+            
+            actionItemChunks.forEach { chunk ->
+                val actionItems = chunk.split("|").map { it.trim() }.filter { it.isNotEmpty() }
+                actionItems.forEach { actionItem ->
+                    result.append("  ✓ $actionItem\n")
+                }
+            }
+            hasActionItems = true
+        }
+        
+        Log.d(TAG, "Reconstructed streamed format with ${regularChunks.size} bullets and ${actionItemChunks.size} action item chunks")
+        return result.toString().trimEnd()
+    }
+    
     /**
      * Finalize streaming response and add it to conversation history
      */
@@ -735,14 +1212,35 @@ class MainActivity : ComponentActivity() {
                     }
                     assistantMsg += "\n\n"
                     
-                    // Create spannable and add to history
+                    // Add to new conversation messages list
+                    val conversationMsg = ConversationMessage(
+                        text = assistantMsg.removePrefix("🤖 "), // Remove emoji for clean display
+                        isUser = false,
+                        imageUri = null
+                    )
+                    conversationMessages.add(conversationMsg)
+                    
+                    // Create spannable and add to legacy history
                     val spannableMessage = SpannableString(assistantMsg)
                     applyActionItemSpansToText(spannableMessage, structuredResponse.actionItems)
                     conversationHistory.append(spannableMessage)
                 } else {
-                    // Handle regular response - just add streamed content to history
+                    // Handle regular response - preserve streaming bullet formatting
                     val formattedMessage = formatMessageWithCollapsibleJson(fullStreamingResponse)
-                    val assistantMsg = "🤖 $formattedMessage\n\n"
+                    
+                    // Reconstruct the streamed content with proper bullet formatting
+                    val streamedContent = reconstructStreamedBulletFormat(streamingChunks)
+                    val assistantMsg = "🤖 $streamedContent\n\n"
+                    
+                    // Add to new conversation messages list (use the formatted streamed content)
+                    val conversationMsg = ConversationMessage(
+                        text = streamedContent, // This preserves the bullet points and checkmarks
+                        isUser = false,
+                        imageUri = null
+                    )
+                    conversationMessages.add(conversationMsg)
+                    
+                    // Add to legacy history
                     conversationHistory.append(assistantMsg)
                 }
                 
@@ -753,10 +1251,14 @@ class MainActivity : ComponentActivity() {
                 streamingChunks.clear()
                 isCurrentlyStreaming = false
                 
+                // Now update conversation display with the new message
+                updateConversationDisplay()
+                
                 Log.i(TAG, "🧹 STREAMING STATE CLEANUP COMPLETE:")
                 Log.i(TAG, "   ✅ Processed ${totalChunks} chunks total")
                 Log.i(TAG, "   🔄 Streaming state reset")
                 Log.i(TAG, "   💾 Content added to conversation history")
+                Log.i(TAG, "   📱 Conversation display updated with new message")
                 Log.i(TAG, "   🎯 Bullet point formatting preserved")
                 Log.i(TAG, "✅ STREAMING RESPONSE FINALIZED SUCCESSFULLY")
             } else {
