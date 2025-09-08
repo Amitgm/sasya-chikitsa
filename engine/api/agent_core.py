@@ -17,7 +17,7 @@ from langchain_core.tools import tool
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
 
-from ml.cnn_with_attention_classifier import CNNWithAttentionClassifier
+from ml.cnn_attn_classifier_improved import CNNWithAttentionClassifier
 
 
 try:
@@ -573,12 +573,25 @@ class AgentCore:
             outputs = []
             for chunk in self.model.predict_leaf_classification(image_b64, text or ""):
                 chunk_str = str(chunk).rstrip("\n")
-                outputs.append(chunk_str)
-                if emitter:
-                    try:
-                        emitter(chunk_str)
-                    except Exception:
-                        pass
+                
+                # Handle attention visualization chunks specially
+                if chunk_str.startswith("ATTENTION_OVERLAY_BASE64:"):
+                    logger.info("🎯 Attention visualization chunk detected - streaming to client")
+                    # Keep the attention overlay in outputs for history
+                    outputs.append("Attention visualization generated - showing AI focus areas")
+                    # Stream the actual base64 data
+                    if emitter:
+                        try:
+                            emitter(chunk_str)
+                        except Exception:
+                            pass
+                else:
+                    outputs.append(chunk_str)
+                    if emitter:
+                        try:
+                            emitter(chunk_str)
+                        except Exception:
+                            pass
             return "\n".join(outputs)
 
         # Create a wrapper tool that checks availability at runtime
@@ -624,12 +637,25 @@ class AgentCore:
             outputs = []
             for chunk in self.model.predict_leaf_classification(image_b64, text or ""):
                 chunk_str = str(chunk).rstrip("\n")
-                outputs.append(chunk_str)
-                if emitter:
-                    try:
-                        emitter(chunk_str)
-                    except Exception:
-                        pass
+                
+                # Handle attention visualization chunks specially
+                if chunk_str.startswith("ATTENTION_OVERLAY_BASE64:"):
+                    logger.info("🎯 Attention visualization chunk detected - streaming to client")
+                    # Keep the attention overlay in outputs for history
+                    outputs.append("Attention visualization generated - showing AI focus areas")
+                    # Stream the actual base64 data
+                    if emitter:
+                        try:
+                            emitter(chunk_str)
+                        except Exception:
+                            pass
+                else:
+                    outputs.append(chunk_str)
+                    if emitter:
+                        try:
+                            emitter(chunk_str)
+                        except Exception:
+                            pass
             return "\n".join(outputs)
 
         tools = [classify_leaf_safe]  # Use the safe version that checks availability
@@ -951,7 +977,14 @@ class AgentCore:
             prediction_chunks = []
             for chunk in self.model.predict_leaf_classification(image_b64, user_input):
                 chunk_str = str(chunk).rstrip("\n")
-                prediction_chunks.append(chunk_str)
+                
+                # Handle attention visualization chunks specially
+                if chunk_str.startswith("ATTENTION_OVERLAY_BASE64:"):
+                    logger.info("🎯 Attention visualization chunk detected in streaming classification")
+                    # Keep user-friendly message in prediction chunks
+                    prediction_chunks.append("Attention visualization generated - showing AI focus areas")
+                else:
+                    prediction_chunks.append(chunk_str)
             
             # Return final result immediately
             if prediction_chunks:
