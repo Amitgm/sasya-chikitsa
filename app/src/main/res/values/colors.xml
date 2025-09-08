@@ -38,10 +38,15 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     
-    <!-- User & Assistant Message Colors -->
-    <color name="user_message_bg">#E8F5E8</color>      <!-- Soft green for user -->
-    <color name="assistant_message_bg">#FFFFFF</color>  <!-- Clean white for assistant -->
+    <!-- User & Assistant Message Colors - ENHANCED CONTRAST -->
+    <color name="user_message_bg">#C8E6C9</color>      <!-- Strong light green for user -->
+    <color name="assistant_message_bg">#F5F5F5</color>  <!-- Light gray for assistant -->
     <color name="user_text">#1B5E20</color>            <!-- Dark forest green -->
-    <color name="assistant_text">#2E2E2E</color>        <!-- Dark gray for better readability -->
-    <color name="action_item_color">#2E7D32</color>     <!-- Forest green for clickable items -->
+    <color name="assistant_text">#000000</color>        <!-- Pure black for maximum readability -->
+    <color name="action_item_color">#1976D2</color>     <!-- Blue for clickable items -->
+    
+    <!-- Additional Chat Colors -->
+    <color name="user_header_bg">#4CAF50</color>        <!-- Green header background -->
+    <color name="assistant_header_bg">#2196F3</color>   <!-- Blue header background -->
+    <color name="header_text_white">#FFFFFF</color>     <!-- White text for headers -->
 </resources>
