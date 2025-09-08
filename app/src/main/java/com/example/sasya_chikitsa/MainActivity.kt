@@ -1325,6 +1325,50 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Create ImageView for attention overlay visualization from base64 data
+     */
+    private fun createAttentionOverlayImageView(base64Data: String): ImageView? {
+        return try {
+            Log.i(TAG, "🎨 Creating attention overlay ImageView")
+            
+            // Decode base64 to bitmap
+            val imageBytes = Base64.decode(base64Data, Base64.DEFAULT)
+            val bitmap = android.graphics.BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+            
+            if (bitmap != null) {
+                // Create ImageView with proper styling
+                val imageView = ImageView(this)
+                imageView.setImageBitmap(bitmap)
+                imageView.scaleType = ImageView.ScaleType.FIT_CENTER
+                imageView.adjustViewBounds = true
+                
+                // Set layout parameters for the image
+                val layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                layoutParams.setMargins(16, 16, 16, 16) // Add margins
+                imageView.layoutParams = layoutParams
+                
+                // Add styling - rounded corners, elevation
+                imageView.setPadding(8, 8, 8, 8)
+                imageView.background = ContextCompat.getDrawable(this, R.drawable.modern_card_background)
+                
+                Log.i(TAG, "   ✅ Attention overlay ImageView created successfully")
+                Log.i(TAG, "   📏 Image dimensions: ${bitmap.width} x ${bitmap.height}")
+                
+                imageView
+            } else {
+                Log.e(TAG, "   ❌ Failed to decode bitmap from base64 data")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "   ❌ Exception creating attention overlay ImageView: ${e.message}")
+            null
+        }
+    }
+    
+    /**
      * Add a streaming chunk immediately to the UI while preserving conversation history
      */
     private fun addStreamingChunk(chunk: String) {
@@ -1356,8 +1400,40 @@ class MainActivity : ComponentActivity() {
             // Add the chunk to the display and track it
             streamingChunks.add(chunk)
             
-            // 🔍 PIPE-SEPARATED ACTION ITEMS DETECTION
-            if (isPipeSeperatedActionItems(chunk)) {
+            // 🎯 ATTENTION OVERLAY IMAGE DETECTION
+            if (chunk.startsWith("ATTENTION_OVERLAY_BASE64:")) {
+                Log.i(TAG, "🎯 ATTENTION OVERLAY CHUNK DETECTED!")
+                Log.i(TAG, "   🖼️ Processing attention visualization image")
+                
+                // Extract base64 data after the prefix
+                val base64Data = chunk.substring("ATTENTION_OVERLAY_BASE64:".length)
+                Log.i(TAG, "   📊 Base64 data length: ${base64Data.length} characters")
+                
+                // Create and display attention overlay image
+                try {
+                    val attentionImageView = createAttentionOverlayImageView(base64Data)
+                    if (attentionImageView != null) {
+                        // Add a header for the attention visualization
+                        responseTextView.append("\n🎯 AI Attention Map - Focus Areas:\n")
+                        
+                        // Add the image to the conversation container (not responseTextView)
+                        conversationContainer.addView(attentionImageView)
+                        
+                        // Add some explanatory text
+                        responseTextView.append("  👁️ The highlighted areas show where the AI focused during disease detection\n")
+                        
+                        Log.i(TAG, "   ✅ Attention overlay image created and displayed successfully")
+                    } else {
+                        Log.e(TAG, "   ❌ Failed to create attention overlay image")
+                        responseTextView.append("  ⚠️ Attention visualization could not be displayed\n")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "   ❌ Error creating attention overlay: ${e.message}")
+                    responseTextView.append("  ⚠️ Error displaying attention visualization\n")
+                }
+                
+            } else if (isPipeSeperatedActionItems(chunk)) {
+                // 🔍 PIPE-SEPARATED ACTION ITEMS DETECTION
                 Log.i(TAG, "🎯 DETECTED PIPE-SEPARATED ACTION ITEMS:")
                 Log.i(TAG, "   📋 Raw action items: '$chunk'")
                 
@@ -1394,7 +1470,7 @@ class MainActivity : ComponentActivity() {
             
             Log.i(TAG, "✅ STREAMING CHUNK PROCESSED SUCCESSFULLY")
             Log.i(TAG, "   📊 Updated total chunks: ${streamingChunks.size}")
-            Log.i(TAG, "   🎯 Display format: Bullet point list")
+            Log.i(TAG, "   🎯 Display format: Bullet point list / Attention image")
             Log.i(TAG, "   " + "=".repeat(50))
         }
     }
