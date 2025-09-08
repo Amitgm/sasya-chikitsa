@@ -310,20 +310,25 @@ class MainActivity : ComponentActivity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT, // Let it size based on content
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(leftMargin, 8, rightMargin, 8) // Reduced vertical margins for tighter spacing
+                setMargins(leftMargin, 12, rightMargin, 12) // More spacing between messages
                 gravity = android.view.Gravity.END // Align to right
                 
                 // Set max width constraint
                 width = LinearLayout.LayoutParams.WRAP_CONTENT
             }
-            radius = 18f // WhatsApp-like rounded corners
-            cardElevation = 2f // Subtle shadow like WhatsApp
+            radius = 16f // Rounded corners
+            cardElevation = 8f // Strong shadow for clear separation
             setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.user_message_bg))
+            // Add border for extra visual distinction
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                strokeWidth = 2
+                strokeColor = ContextCompat.getColor(this@MainActivity, R.color.user_message_border)
+            }
         }
         
         val messageLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(16, 12, 16, 12) // WhatsApp-like padding
+            setPadding(0, 0, 0, 16) // No side padding for header, bottom padding for content
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -337,16 +342,23 @@ class MainActivity : ComponentActivity() {
             }
         }
         
-        // Add header with icon and "Human" label
+        // Add header with icon and "Human" label with colored background
         val headerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 0, 0, 8) // Space between header and content
+            setPadding(12, 6, 12, 6) // Padding for colored background
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.user_header_bg))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, 8) // Space between header and content
+            }
         }
         
         val headerText = TextView(this).apply {
             text = "👤 Human"
             textSize = 14f // Smaller header text
-            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.header_text_white))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
         headerLayout.addView(headerText)
@@ -360,6 +372,7 @@ class MainActivity : ComponentActivity() {
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
                 setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
                 typeface = android.graphics.Typeface.DEFAULT
+                setPadding(16, 8, 16, 8) // Padding for text content
                 
                 // Make text wrap nicely
                 maxWidth = maxCardWidth - 64 // Account for padding and margins
@@ -375,7 +388,7 @@ class MainActivity : ComponentActivity() {
                     imageSize,
                     imageSize
                 ).apply {
-                    setMargins(0, if (message.text.isNotEmpty()) 8 else 0, 0, 0) // Space from text if both exist
+                    setMargins(16, if (message.text.isNotEmpty()) 8 else 8, 16, 0) // Margin to match text padding
                 }
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setImageURI(message.imageUri)
@@ -405,17 +418,22 @@ class MainActivity : ComponentActivity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(leftMargin, 8, rightMargin, 8) // Consistent spacing with user messages
+                setMargins(leftMargin, 12, rightMargin, 12) // More spacing between messages
                 gravity = android.view.Gravity.START // Align to left
             }
-            radius = 18f // WhatsApp-like rounded corners
-            cardElevation = 2f // Subtle shadow like WhatsApp
+            radius = 16f // Rounded corners
+            cardElevation = 8f // Strong shadow for clear separation
             setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_message_bg))
+            // Add border for extra visual distinction
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                strokeWidth = 2
+                strokeColor = ContextCompat.getColor(this@MainActivity, R.color.assistant_message_border)
+            }
         }
         
         val messageLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(16, 12, 16, 12) // WhatsApp-like padding
+            setPadding(0, 0, 0, 16) // No side padding for header, bottom padding for content
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -433,16 +451,23 @@ class MainActivity : ComponentActivity() {
             if (message.text.contains("📋 Recommended Actions:")) {
                 createStreamingActionItemsView(messageLayout, message.text)
             } else {
-                // Add header with icon and "Sasya Chikitsa" label
+                // Add header with icon and "Sasya Chikitsa" label with colored background
                 val headerLayout = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    setPadding(0, 0, 0, 8) // Space between header and content
+                    setPadding(12, 6, 12, 6) // Padding for colored background
+                    setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_header_bg))
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(0, 0, 0, 8) // Space between header and content
+                    }
                 }
                 
                 val headerText = TextView(this).apply {
                     text = "🤖 Sasya Chikitsa"
                     textSize = 14f // Smaller header text
-                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.header_text_white))
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 }
                 headerLayout.addView(headerText)
@@ -456,6 +481,7 @@ class MainActivity : ComponentActivity() {
                     setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                     setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
                     movementMethod = LinkMovementMethod.getInstance()
+                    setPadding(16, 8, 16, 8) // Padding for text content
                     
                     // Constrain max width for better readability
                     maxWidth = maxCardWidth - 64
@@ -470,16 +496,23 @@ class MainActivity : ComponentActivity() {
     
     // Helper method to create structured assistant view with clickable action items (WhatsApp-style)
     private fun createStructuredAssistantView(messageLayout: LinearLayout, structuredResponse: StructuredResponse) {
-        // Add header with icon and "Sasya Chikitsa" label
+        // Add header with icon and "Sasya Chikitsa" label with colored background
         val headerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 0, 0, 8) // Space between header and content
+            setPadding(12, 6, 12, 6) // Padding for colored background
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_header_bg))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, 8) // Space between header and content
+            }
         }
         
         val headerText = TextView(this).apply {
             text = "🤖 Sasya Chikitsa"
             textSize = 14f // Smaller header text
-            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.header_text_white))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
         headerLayout.addView(headerText)
@@ -491,6 +524,7 @@ class MainActivity : ComponentActivity() {
             textSize = 16f // Consistent with user messages
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
             setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
+            setPadding(16, 8, 16, 8) // Padding for text content
         }
         messageLayout.addView(mainAnswerText)
         
@@ -554,16 +588,23 @@ class MainActivity : ComponentActivity() {
     
     // Helper method to create streaming action items view (with checkmarks ✓)
     private fun createStreamingActionItemsView(messageLayout: LinearLayout, messageText: String) {
-        // Add header with icon and "Sasya Chikitsa" label
+        // Add header with icon and "Sasya Chikitsa" label with colored background
         val headerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 0, 0, 8) // Space between header and content
+            setPadding(12, 6, 12, 6) // Padding for colored background
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_header_bg))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, 8) // Space between header and content
+            }
         }
         
         val headerText = TextView(this).apply {
             text = "🤖 Sasya Chikitsa"
             textSize = 14f // Smaller header text
-            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.header_text_white))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
         headerLayout.addView(headerText)
@@ -601,6 +642,7 @@ class MainActivity : ComponentActivity() {
                 textSize = 16f // Consistent with other messages
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
                 setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
+                setPadding(16, 8, 16, 8) // Padding for text content
             }
             messageLayout.addView(regularText)
         }
