@@ -319,11 +319,6 @@ class MainActivity : ComponentActivity() {
             radius = 16f // Rounded corners
             cardElevation = 8f // Strong shadow for clear separation
             setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.user_message_bg))
-            // Add border for extra visual distinction
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                strokeWidth = 2
-                strokeColor = ContextCompat.getColor(this@MainActivity, R.color.user_message_border)
-            }
         }
         
         val messageLayout = LinearLayout(this).apply {
@@ -424,11 +419,6 @@ class MainActivity : ComponentActivity() {
             radius = 16f // Rounded corners
             cardElevation = 8f // Strong shadow for clear separation
             setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_message_bg))
-            // Add border for extra visual distinction
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                strokeWidth = 2
-                strokeColor = ContextCompat.getColor(this@MainActivity, R.color.assistant_message_border)
-            }
         }
         
         val messageLayout = LinearLayout(this).apply {
