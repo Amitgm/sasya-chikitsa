@@ -84,6 +84,9 @@ class MainActivity : ComponentActivity() {
     
     // List to store conversation messages with images
     private val conversationMessages = mutableListOf<ConversationMessage>()
+    
+    // Store attention overlay data during streaming
+    private var currentAttentionOverlayData: String? = null
 
     private val TAG = "MainActivity" // For logging
     
@@ -1390,6 +1393,7 @@ class MainActivity : ComponentActivity() {
                 stopThinkingIndicator() // Stop animated thinking dots
                 removeTypingIndicator() // Remove any other typing indicators
                 streamingChunks.clear()
+                currentAttentionOverlayData = null // Clear previous attention data
                 isCurrentlyStreaming = true
                 
                 // Add assistant header for the streaming response
@@ -1409,28 +1413,18 @@ class MainActivity : ComponentActivity() {
                 val base64Data = chunk.substring("ATTENTION_OVERLAY_BASE64:".length)
                 Log.i(TAG, "   📊 Base64 data length: ${base64Data.length} characters")
                 
-                // Create and display attention overlay image
-                try {
-                    val attentionImageView = createAttentionOverlayImageView(base64Data)
-                    if (attentionImageView != null) {
-                        // Add a header for the attention visualization
-                        responseTextView.append("\n🎯 AI Attention Map - Focus Areas:\n")
-                        
-                        // Add the image to the conversation container (not responseTextView)
-                        conversationContainer.addView(attentionImageView)
-                        
-                        // Add some explanatory text
-                        responseTextView.append("  👁️ The highlighted areas show where the AI focused during disease detection\n")
-                        
-                        Log.i(TAG, "   ✅ Attention overlay image created and displayed successfully")
-                    } else {
-                        Log.e(TAG, "   ❌ Failed to create attention overlay image")
-                        responseTextView.append("  ⚠️ Attention visualization could not be displayed\n")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "   ❌ Error creating attention overlay: ${e.message}")
-                    responseTextView.append("  ⚠️ Error displaying attention visualization\n")
-                }
+                // Store the attention overlay data for later rendering
+                currentAttentionOverlayData = base64Data
+                
+                // Add explanatory text to the stream
+                responseTextView.append("\n🎯 AI Attention Map - Focus Areas:\n")
+                responseTextView.append("  👁️ The highlighted areas show where the AI focused during disease detection\n")
+                responseTextView.append("  🖼️ Generating attention heatmap visualization...\n")
+                
+                // Don't add this chunk to streamingChunks since we handle it separately
+                Log.i(TAG, "   ✅ Attention overlay data stored for rendering")
+                // Return early to avoid adding to streamingChunks
+                return@runOnUiThread
                 
             } else if (isPipeSeperatedActionItems(chunk)) {
                 // 🔍 PIPE-SEPARATED ACTION ITEMS DETECTION
@@ -1606,6 +1600,31 @@ class MainActivity : ComponentActivity() {
                 // Now update conversation display with the new message
                 updateConversationDisplay()
                 
+                // Render attention overlay image if available
+                if (currentAttentionOverlayData != null) {
+                    Log.i(TAG, "🎯 RENDERING ATTENTION OVERLAY IMAGE:")
+                    Log.i(TAG, "   📊 Base64 data length: ${currentAttentionOverlayData!!.length} characters")
+                    
+                    try {
+                        val attentionImageView = createAttentionOverlayImageView(currentAttentionOverlayData!!)
+                        if (attentionImageView != null) {
+                            // Add the image to the conversation container
+                            conversationContainer.addView(attentionImageView)
+                            
+                            Log.i(TAG, "   ✅ Attention overlay image rendered successfully")
+                            Log.i(TAG, "   🖼️ Image added to conversation container")
+                        } else {
+                            Log.e(TAG, "   ❌ Failed to create attention overlay ImageView")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "   ❌ Error rendering attention overlay: ${e.message}")
+                    }
+                    
+                    // Clear the stored data
+                    currentAttentionOverlayData = null
+                    Log.i(TAG, "   🧹 Attention overlay data cleared")
+                }
+                
                 // Ensure user can see the complete response with robust scrolling
                 scrollToResponseEnd()
                 
@@ -1615,6 +1634,7 @@ class MainActivity : ComponentActivity() {
                 Log.i(TAG, "   💾 Content added to conversation history")
                 Log.i(TAG, "   📱 Conversation display updated with new message")
                 Log.i(TAG, "   🎯 Bullet point formatting preserved")
+                Log.i(TAG, "   🖼️ Attention overlay rendered if available")
                 Log.i(TAG, "✅ STREAMING RESPONSE FINALIZED SUCCESSFULLY")
             } else {
                 // Just remove typing indicator if no streaming happened
