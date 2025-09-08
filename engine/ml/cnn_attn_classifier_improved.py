@@ -52,9 +52,9 @@ class CNNWithAttentionClassifier(Layer):
     @staticmethod
     def load_model():
         ml_dir = os.path.dirname(__file__)
-        parent_dir = os.path.dirname(ml_dir)
-        resources_dir = os.path.join(parent_dir, "resources")
-        binary_model_path = os.path.join(resources_dir, "basic_self_attention_cnn_model_final.keras")
+        # parent_dir = os.path.dirname(ml_dir)
+        # resources_dir = os.path.join(parent_dir, "resources")
+        binary_model_path = os.path.join(ml_dir, "basic_self_attention_cnn_model_final.keras")
         print(f"[INFO] Loading attention CNN model from {binary_model_path}...")
         
         custom_objects = {
