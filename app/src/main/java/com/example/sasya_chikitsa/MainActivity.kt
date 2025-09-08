@@ -1110,16 +1110,88 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Helper method to show immediate server activity indicator
-    private fun showServerActivityIndicator() {
+    // Variables for animated thinking indicator
+    private var thinkingAnimation: Runnable? = null
+    private var isThinking = false
+
+    // Helper method to show animated thinking indicator with animated dots
+    private fun showAnimatedThinkingIndicator() {
         runOnUiThread {
-            Log.d(TAG, "🔄 Showing immediate server activity indicator")
+            Log.d(TAG, "🤔 Starting animated thinking indicator")
             
-            // Simply append immediate server activity indicator  
-            responseTextView.append("🤖 Sasya Chikitsa AI Agent Typing...\n")
+            // Mark that we're thinking
+            isThinking = true
+            
+            // Add initial thinking message
+            responseTextView.append("🤖 Sasya Chikitsa AI Agent Thinking")
+            
+            // Start dot animation
+            startThinkingDotAnimation()
             
             // Scroll to show indicator
             scrollToResponseEnd()
+        }
+    }
+    
+    private fun startThinkingDotAnimation() {
+        var dotCount = 0
+        
+        thinkingAnimation = object : Runnable {
+            override fun run() {
+                // Stop if we're no longer thinking or streaming has started
+                if (!isThinking || isCurrentlyStreaming) {
+                    Log.d(TAG, "🛑 Stopping thinking animation - streaming started: $isCurrentlyStreaming")
+                    return
+                }
+                
+                runOnUiThread {
+                    val currentText = responseTextView.text.toString()
+                    val lines = currentText.split("\n").toMutableList()
+                    
+                    // Find and update the thinking line
+                    for (i in lines.indices.reversed()) {
+                        if (lines[i].contains("Sasya Chikitsa AI Agent Thinking")) {
+                            // Create animated dots (1-4 dots cycling)
+                            val dots = ".".repeat((dotCount % 4) + 1)
+                            lines[i] = "🤖 Sasya Chikitsa AI Agent Thinking$dots"
+                            break
+                        }
+                    }
+                    
+                    // Update the display
+                    responseTextView.text = lines.joinToString("\n")
+                    scrollToResponseEnd()
+                    
+                    dotCount++
+                    
+                    // Continue animation every 500ms
+                    responseTextView.postDelayed(this, 500)
+                }
+            }
+        }
+        
+        // Start the animation
+        responseTextView.postDelayed(thinkingAnimation!!, 500)
+    }
+    
+    private fun stopThinkingIndicator() {
+        runOnUiThread {
+            Log.d(TAG, "🛑 Stopping thinking indicator")
+            
+            isThinking = false
+            
+            // Cancel any pending animation
+            thinkingAnimation?.let { responseTextView.removeCallbacks(it) }
+            
+            // Remove thinking indicator from display
+            val currentText = responseTextView.text.toString()
+            val lines = currentText.split("\n").toMutableList()
+            lines.removeAll { line -> 
+                line.contains("Sasya Chikitsa AI Agent Thinking") 
+            }
+            
+            responseTextView.text = lines.joinToString("\n")
+            Log.d(TAG, "✅ Thinking indicator removed")
         }
     }
 
@@ -1210,16 +1282,20 @@ class MainActivity : ComponentActivity() {
     // Helper method to remove typing indicator - restores from conversationHistory
     private fun removeTypingIndicator() {
         runOnUiThread {
-            Log.d(TAG, "🧹 Removing all typing/progress indicators")
+            Log.d(TAG, "🧹 Removing all typing/progress/thinking indicators")
             
-            // Remove any typing-related text including "Sasya Chikitsa AI Agent Typing..."
+            // Stop any thinking animation
+            stopThinkingIndicator()
+            
+            // Remove any typing-related text including all indicators
             val currentText = responseTextView.text.toString()
             val lines = currentText.split("\n").toMutableList()
             
-            // Remove typing, progress, and analysis indicators
+            // Remove typing, progress, thinking, and analysis indicators
             lines.removeAll { line ->
                 line.contains("Typing...") || 
                 line.contains("typing") || 
+                line.contains("Thinking") ||
                 line.contains("⚡") || 
                 line.contains("🧠") || 
                 line.contains("🔬") || 
@@ -1228,13 +1304,14 @@ class MainActivity : ComponentActivity() {
                 line.contains("🌱") ||
                 line.contains("Analyzing...") ||
                 line.contains("Examining") ||
-                line.contains("Sasya Chikitsa AI Agent Typing")
+                line.contains("Sasya Chikitsa AI Agent Typing") ||
+                line.contains("Sasya Chikitsa AI Agent Thinking")
             }
             
             // Restore clean text
             responseTextView.text = lines.joinToString("\n")
             
-            Log.d(TAG, "✅ All typing/progress indicators removed. Clean text restored.")
+            Log.d(TAG, "✅ All typing/progress/thinking indicators removed. Clean text restored.")
         }
     }
 
@@ -1264,9 +1341,10 @@ class MainActivity : ComponentActivity() {
             Log.i(TAG, "   🎯 About to display this chunk individually")
             
             if (!isCurrentlyStreaming) {
-                // Starting new streaming - clear any typing indicator
+                // Starting new streaming - clear any thinking/typing indicators
                 Log.i(TAG, "🚀 STARTING NEW STREAMING SESSION")
-                removeTypingIndicator()
+                stopThinkingIndicator() // Stop animated thinking dots
+                removeTypingIndicator() // Remove any other typing indicators
                 streamingChunks.clear()
                 isCurrentlyStreaming = true
                 
@@ -1362,6 +1440,9 @@ class MainActivity : ComponentActivity() {
      */
     private fun finalizeStreamingResponse() {
         runOnUiThread {
+            // Ensure thinking animation is completely stopped
+            stopThinkingIndicator()
+            
             // 📊 ENHANCED FINALIZATION LOGGING
             Log.i(TAG, "🏁 FINALIZING STREAMING RESPONSE:")
             Log.i(TAG, "   🔄 Currently streaming: $isCurrentlyStreaming")
@@ -1526,7 +1607,7 @@ class MainActivity : ComponentActivity() {
         sessionId: String?
         // text: String? // Add if required in ChatRequestData
     ) {
-        showServerActivityIndicator() // Show immediate server activity indicator
+        showAnimatedThinkingIndicator() // Show animated thinking indicator with dots
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val requestData = ChatRequestData(
