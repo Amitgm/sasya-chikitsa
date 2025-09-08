@@ -1364,3 +1364,170 @@ class AgentCore:
             return out.content
         except Exception:
             return str(out)
+
+    async def _handle_image_classification(self, inputs: Dict, session_id: str):
+        """
+        Handle direct image classification using the improved CNN classifier with attention visualization.
+        This method bypasses the ReAct agent and directly calls the CNN model.
+        """
+        logger.info("🎯 DIRECT IMAGE CLASSIFICATION: Using improved CNN with attention visualization")
+        
+        system_context = inputs.get("system_context", "")
+        user_input = inputs.get("input", "")
+        
+        # Extract image handle from system context
+        image_handle = None
+        if "image_handle=" in system_context:
+            parts = system_context.split("image_handle=")
+            if len(parts) > 1:
+                image_handle = parts[1].split()[0].strip()
+        
+        if not image_handle or image_handle not in self.image_store:
+            logger.error(f"❌ No valid image handle found. Available: {list(self.image_store.keys())}")
+            return {"output": "ERROR: No valid image provided for classification.", "intermediate_steps": []}
+        
+        logger.info(f"🖼️ Using image handle: {image_handle}")
+        
+        # Get the base64 image data
+        image_b64 = self.image_store[image_handle]
+        
+        # Parse and store any metadata from user input
+        if user_input:
+            stored_metadata = self.parse_and_store_user_metadata(session_id, user_input)
+            if stored_metadata:
+                logger.info(f"📊 Stored metadata: {stored_metadata}")
+        
+        # Perform direct CNN classification with attention visualization
+        logger.info("🧠 Starting CNN classification with attention visualization...")
+        emitter = self._image_emitters.get(image_handle) or self._emit_ctx.get()
+        outputs = []
+        
+        try:
+            for chunk in self.model.predict_leaf_classification(image_b64, user_input or ""):
+                chunk_str = str(chunk).rstrip("\n")
+                
+                # Handle attention visualization chunks specially
+                if chunk_str.startswith("ATTENTION_OVERLAY_BASE64:"):
+                    logger.info("🎯 Attention visualization chunk detected in direct classification")
+                    # Keep user-friendly message in outputs for history
+                    outputs.append("🎯 Attention visualization generated - showing AI focus areas")
+                    # Stream the actual base64 data
+                    if emitter:
+                        try:
+                            emitter(chunk_str)
+                        except Exception:
+                            pass
+                else:
+                    outputs.append(chunk_str)
+                    if emitter:
+                        try:
+                            emitter(chunk_str)
+                        except Exception:
+                            pass
+            
+            # Join outputs to create the classification result
+            classification_result = "\n".join(outputs)
+            logger.info(f"✅ Direct image classification completed: {len(outputs)} chunks processed")
+            
+            # Enhance the result with context and generate action items
+            enhanced_result = self._enhance_classification_result(classification_result, session_id)
+            logger.info("📈 Enhanced classification result with context and action items")
+            
+            return {"output": enhanced_result, "intermediate_steps": []}
+            
+        except Exception as e:
+            logger.error(f"❌ Error in direct image classification: {e}")
+            return {"output": f"ERROR: Classification failed - {str(e)}", "intermediate_steps": []}
+
+    async def _handle_conversational_question(self, inputs: Dict, session_id: str):
+        """
+        Handle conversational questions without images using the LLM directly.
+        This method bypasses the ReAct agent for text-only conversations.
+        """
+        logger.info("💬 DIRECT CONVERSATIONAL RESPONSE: Using LLM for text-only conversation")
+        
+        user_input = inputs.get("input", "")
+        
+        if not user_input:
+            logger.warning("⚠️ Empty user input received")
+            return {"output": "I didn't receive any input. Could you please ask a question about plant health?", "intermediate_steps": []}
+        
+        # Parse and store any metadata from user input
+        stored_metadata = self.parse_and_store_user_metadata(session_id, user_input)
+        if stored_metadata:
+            logger.info(f"📊 Stored metadata from conversation: {stored_metadata}")
+        
+        # Check if user is asking for RAG-based prescription
+        if self.has_complete_metadata(session_id) and any(keyword in user_input.lower() for keyword in [
+            'prescription', 'treatment', 'specific', 'location', 'area', 'recommend'
+        ]):
+            # Try to get disease from previous conversation
+            disease = None
+            history = self.get_session_history(session_id)
+            messages = getattr(history, 'messages', [])
+            
+            for msg in reversed(messages[-5:]):  # Check last 5 messages
+                if getattr(msg, "type", None) == "ai":
+                    content = getattr(msg, "content", "")
+                    disease = self.extract_disease_from_classification(content)
+                    if disease:
+                        break
+            
+            if disease:
+                metadata = self.get_session_metadata(session_id)
+                plant_name = metadata.get('plant', 'plant')
+                logger.info(f"🌿 Providing RAG prescription for {plant_name} disease: {disease}")
+                rag_prescription = self.get_rag_prescription(session_id, disease, user_input)
+                if rag_prescription:
+                    structured_response = f"MAIN_ANSWER: Based on your {plant_name} crop, location, and current season, here's the specific prescription for {disease}: {rag_prescription}\nACTION_ITEMS: Follow treatment plan | Ask about side effects | Get {plant_name} care tips | Upload new plant image"
+                    return {"output": structured_response, "intermediate_steps": []}
+        
+        # Build conversational prompt with history
+        history = self.get_session_history(session_id)
+        messages = getattr(history, 'messages', [])
+        
+        conversation_history = ""
+        if messages:
+            conversation_history = "\n=== Recent Conversation History ===\n"
+            for msg in messages[-10:]:  # Last 10 messages for context
+                msg_type = getattr(msg, "type", "unknown")
+                content = getattr(msg, "content", str(msg))
+                conversation_history += f"{msg_type.upper()}: {content[:200]}...\n" if len(content) > 200 else f"{msg_type.upper()}: {content}\n"
+            conversation_history += "=== End History ===\n\n"
+        
+        # Check metadata for context
+        metadata_context = ""
+        if session_id in self.session_metadata:
+            metadata = self.session_metadata[session_id]
+            if metadata:
+                metadata_context = f"User Context: Location={metadata.get('location', 'unknown')}, Season={metadata.get('season', 'unknown')}, Plant={metadata.get('plant', 'unknown')}\n\n"
+        
+        # Create conversational prompt
+        prompt = (
+            "You are Sasya Chikitsa, an AI plant health assistant specializing in agricultural diagnosis and treatment.\n\n"
+            f"{metadata_context}"
+            f"{conversation_history}"
+            f"Current Question: {user_input}\n\n"
+            "Please provide a helpful response. If the user is asking about plant diseases or needs specific agricultural advice, "
+            "encourage them to upload a plant image for accurate diagnosis. Format your response as:\n"
+            "MAIN_ANSWER: [your main response]\n"
+            "ACTION_ITEMS: [relevant action items separated by |]\n\n"
+            "Keep the response conversational and helpful."
+        )
+        
+        try:
+            logger.info("🤖 Generating conversational response with LLM")
+            out = await asyncio.to_thread(self.llm.invoke, prompt)
+            response_content = out.content if hasattr(out, 'content') else str(out)
+            
+            logger.info(f"✅ Conversational response generated: {len(response_content)} characters")
+            return {"output": response_content, "intermediate_steps": []}
+            
+        except Exception as e:
+            logger.error(f"❌ Error in conversational response: {e}")
+            fallback_response = (
+                "MAIN_ANSWER: I'm here to help with plant health questions! "
+                "For accurate disease diagnosis, please upload a clear photo of your plant's leaves.\n"
+                "ACTION_ITEMS: Upload plant image | Ask specific question | Tell me your location"
+            )
+            return {"output": fallback_response, "intermediate_steps": []}
