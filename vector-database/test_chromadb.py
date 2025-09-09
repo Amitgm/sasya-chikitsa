@@ -1,11 +1,13 @@
 import chromadb
+import os
 # import chromadb.utils.embedding_functions as embedding_functions
 # from langchain_huggingface import HuggingFaceEmbeddings
 
 
 
 # chroma_client = chromadb.HttpClient(host='0.0.0.0', port=8000)
-chroma_client = chromadb.HttpClient(host="localhost", port=8000)
+# chroma_client = chromadb.HttpClient(host="localhost", port=8000)
+chroma_client = chromadb.HttpClient(host="http://chromadb-with-data-amd64-sasya-chikitsa.apps.cluster-mx6z7.mx6z7.sandbox5315.opentlc.com", port=80)
 
 chroma_client.heartbeat()
 print("ChromaDB client connected successfully.")
