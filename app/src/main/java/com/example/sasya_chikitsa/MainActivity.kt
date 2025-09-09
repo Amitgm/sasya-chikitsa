@@ -20,6 +20,7 @@ import android.text.style.UnderlineSpan
 import android.text.style.StyleSpan
 import android.graphics.Typeface
 import android.view.View
+import android.view.ViewTreeObserver
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -37,6 +38,7 @@ import com.example.sasya_chikitsa.network.RetrofitClient // Import Retrofit clie
 import com.example.sasya_chikitsa.config.ServerConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -67,9 +69,24 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var responseTextView: TextView // TextView to show stream output
     private lateinit var conversationScrollView: ScrollView // ScrollView for conversation
+    private lateinit var conversationContainer: LinearLayout // Container for individual messages
 
     private var selectedImageUri: Uri? = null
     private var conversationHistory = SpannableStringBuilder() // Store conversation history with formatting
+    
+    // Data class for conversation messages with images
+    data class ConversationMessage(
+        val text: String,
+        val isUser: Boolean,
+        val imageUri: Uri? = null,
+        val timestamp: Long = System.currentTimeMillis()
+    )
+    
+    // List to store conversation messages with images
+    private val conversationMessages = mutableListOf<ConversationMessage>()
+    
+    // Store attention overlay data during streaming
+    private var currentAttentionOverlayData: String? = null
 
     private val TAG = "MainActivity" // For logging
     
@@ -107,6 +124,7 @@ class MainActivity : ComponentActivity() {
         settingsBtn = findViewById(R.id.settingsBtn)
         responseTextView = findViewById(R.id.responseTextView)
         conversationScrollView = findViewById(R.id.conversationScrollView)
+        conversationContainer = findViewById(R.id.conversationContainer)
         
         // Update server status display
         updateServerStatusDisplay()
@@ -164,12 +182,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Add user message to conversation history
+            // Add user message to conversation history with image
             if (message.isNotEmpty()) {
-                addUserMessage(message, currentImageUri != null)
+                addUserMessageWithImage(message, currentImageUri)
 //                Toast.makeText(this, "Message sent: $message", Toast.LENGTH_SHORT).show()
             } else if (currentImageUri != null) {
-                addUserMessage("Image", true)
+                addUserMessageWithImage("Image", currentImageUri)
 //                Toast.makeText(this, "Image sent", Toast.LENGTH_SHORT).show()
             }
 
@@ -179,10 +197,10 @@ class MainActivity : ComponentActivity() {
             // Fetch the stream
             fetchChatStreamFromServer(message, imageBase64, sessionId)
             
-                // Clear the image after sending (one-time use) - silently
-                if (currentImageUri != null) {
-                    clearSelectedImage(showToast = false)
-                }
+            // Clear the upload preview but keep image in conversation history
+            if (currentImageUri != null) {
+                clearSelectedImage(showToast = false)
+            }
             } catch (e: Exception) {
                 Log.e(TAG, "Error in send button logic", e)
                 Toast.makeText(this, "Error sending message: ${e.message}", Toast.LENGTH_LONG).show()
@@ -223,6 +241,25 @@ class MainActivity : ComponentActivity() {
         
         updateConversationDisplay()
     }
+    
+    // Enhanced helper method to add user message with image support
+    private fun addUserMessageWithImage(message: String, imageUri: Uri?) {
+        // Add to new conversation messages list
+        val conversationMsg = ConversationMessage(
+            text = message,
+            isUser = true,
+            imageUri = imageUri
+        )
+        conversationMessages.add(conversationMsg)
+        
+        // Also add to legacy text-based history for compatibility
+        val imageIndicator = if (imageUri != null) " 📷" else ""
+        val userMsg = "👤 $message$imageIndicator\n\n"
+        conversationHistory.append(userMsg)
+        
+        Log.d(TAG, "Added user message with image. Total messages: ${conversationMessages.size}")
+        updateConversationDisplay()
+    }
 
     // Helper method to add assistant message to conversation
     private fun addAssistantMessage(message: String) {
@@ -234,14 +271,430 @@ class MainActivity : ComponentActivity() {
             addStructuredAssistantMessage(structuredResponse.mainAnswer, structuredResponse.actionItems)
         } else {
             // Handle regular unstructured response
-            val formattedMessage = formatMessageWithCollapsibleJson(message)
-            val assistantMsg = "🤖 $formattedMessage\n\n"
+            addAssistantMessageToConversation(message)
+        }
+    }
+    
+    // Enhanced helper method to add assistant message to new conversation structure
+    private fun addAssistantMessageToConversation(message: String) {
+        val formattedMessage = formatMessageWithCollapsibleJson(message)
+        
+        // Add to new conversation messages list
+        val conversationMsg = ConversationMessage(
+            text = formattedMessage,
+            isUser = false,
+            imageUri = null
+        )
+        conversationMessages.add(conversationMsg)
+        
+        // Also add to legacy text-based history for compatibility
+        val assistantMsg = "🤖 $formattedMessage\n\n"
+        conversationHistory.append(assistantMsg)
+        
+        Log.d(TAG, "Added assistant message. Total messages: ${conversationMessages.size}")
+        updateConversationDisplay()
+        
+        // Ensure user can see the complete response
+        scrollToResponseEnd()
+    }
+    
+    // Helper method to create a user message view with optional image (aligned right, WhatsApp-style)
+    private fun createUserMessageView(message: ConversationMessage): View {
+        // Calculate width for WhatsApp-like chat bubble (75% max width, but can be smaller for short messages)
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val maxCardWidth = (screenWidth * 0.75).toInt()
+        val minCardWidth = (screenWidth * 0.3).toInt()
+        val rightMargin = 16
+        val leftMargin = (screenWidth * 0.2).toInt() // More space on left to push right
+        
+        val messageCard = androidx.cardview.widget.CardView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, // Let it size based on content
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(leftMargin, 12, rightMargin, 12) // More spacing between messages
+                gravity = android.view.Gravity.END // Align to right
+                
+                // Set max width constraint
+                width = LinearLayout.LayoutParams.WRAP_CONTENT
+            }
+            radius = 16f // Rounded corners
+            cardElevation = 8f // Strong shadow for clear separation
+            setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.user_message_bg))
+        }
+        
+        val messageLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, 16) // No side padding for header, bottom padding for content
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                // Set width constraints based on content type
+                if (message.imageUri != null) {
+                    // Messages with images get more consistent width
+                    width = maxCardWidth - 32 // Account for padding
+                }
+                // Text-only messages use WRAP_CONTENT naturally
+            }
+        }
+        
+        // Add header with icon and "Human" label with colored background
+        val headerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(12, 6, 12, 6) // Padding for colored background
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.user_header_bg))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, 8) // Space between header and content
+            }
+        }
+        
+        val headerText = TextView(this).apply {
+            text = "👤 Human"
+            textSize = 14f // Smaller header text
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.header_text_white))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        headerLayout.addView(headerText)
+        messageLayout.addView(headerLayout)
+        
+        // Add message text if not empty
+        if (message.text.isNotEmpty()) {
+            val textView = TextView(this).apply {
+                text = message.text // Clean text without emoji (header has it)
+                textSize = 16f // Standard message text size
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.user_text))
+                setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
+                typeface = android.graphics.Typeface.DEFAULT
+                setPadding(16, 8, 16, 8) // Padding for text content
+                
+                // Make text wrap nicely
+                maxWidth = maxCardWidth - 64 // Account for padding and margins
+            }
+            messageLayout.addView(textView)
+        }
+        
+        // Add image if present (WhatsApp-style image sizing)
+        if (message.imageUri != null) {
+            val imageView = ImageView(this).apply {
+                val imageSize = minOf(maxCardWidth - 32, 280) // Max 280dp like WhatsApp, account for padding
+                layoutParams = LinearLayout.LayoutParams(
+                    imageSize,
+                    imageSize
+                ).apply {
+                    setMargins(16, if (message.text.isNotEmpty()) 8 else 8, 16, 0) // Margin to match text padding
+                }
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setImageURI(message.imageUri)
+                
+                // WhatsApp-like rounded corner background
+                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.modern_card_background)
+                clipToOutline = true
+            }
+            messageLayout.addView(imageView)
+        }
+        
+        messageCard.addView(messageLayout)
+        return messageCard
+    }
+    
+    // Helper method to create an assistant message view (aligned left, WhatsApp-style)
+    private fun createAssistantMessageView(message: ConversationMessage): View {
+        // Calculate width for WhatsApp-like chat bubble (85% max width for longer AI responses)
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val maxCardWidth = (screenWidth * 0.85).toInt()
+        val leftMargin = 16
+        val rightMargin = (screenWidth * 0.1).toInt() // Less space on right to push left
+        
+        val messageCard = androidx.cardview.widget.CardView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(leftMargin, 12, rightMargin, 12) // More spacing between messages
+                gravity = android.view.Gravity.START // Align to left
+            }
+            radius = 16f // Rounded corners
+            cardElevation = 8f // Strong shadow for clear separation
+            setCardBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_message_bg))
+        }
+        
+        val messageLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, 16) // No side padding for header, bottom padding for content
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        
+        // Check if this is a structured response with action items
+        val structuredResponse = parseStructuredResponse(message.text)
+        
+        if (structuredResponse != null) {
+            // Handle structured response with separate formatting for main answer and action items
+            createStructuredAssistantView(messageLayout, structuredResponse)
+        } else {
+            // Handle regular response with bullet point formatting preserved
+            if (message.text.contains("📋 Recommended Actions:")) {
+                createStreamingActionItemsView(messageLayout, message.text)
+            } else {
+                // Add header with icon and "Sasya Chikitsa" label with colored background
+                val headerLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(12, 6, 12, 6) // Padding for colored background
+                    setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_header_bg))
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(0, 0, 0, 8) // Space between header and content
+                    }
+                }
+                
+                val headerText = TextView(this).apply {
+                    text = "🤖 Sasya Chikitsa"
+                    textSize = 14f // Smaller header text
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.header_text_white))
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+                headerLayout.addView(headerText)
+                messageLayout.addView(headerLayout)
+                
+                val textView = TextView(this).apply {
+                    // Clean text without emoji prefix (header has it)
+                    val displayText = message.text.removePrefix("🤖 ").trim()
+                    text = displayText
+                    textSize = 16f // Consistent with user messages
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+                    setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
+                    movementMethod = LinkMovementMethod.getInstance()
+                    setPadding(16, 8, 16, 8) // Padding for text content
+                    
+                    // Constrain max width for better readability
+                    maxWidth = maxCardWidth - 64
+                }
+                messageLayout.addView(textView)
+            }
+        }
+        
+        messageCard.addView(messageLayout)
+        return messageCard
+    }
+    
+    // Helper method to create structured assistant view with clickable action items (WhatsApp-style)
+    private fun createStructuredAssistantView(messageLayout: LinearLayout, structuredResponse: StructuredResponse) {
+        // Add header with icon and "Sasya Chikitsa" label with colored background
+        val headerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(12, 6, 12, 6) // Padding for colored background
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_header_bg))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, 8) // Space between header and content
+            }
+        }
+        
+        val headerText = TextView(this).apply {
+            text = "🤖 Sasya Chikitsa"
+            textSize = 14f // Smaller header text
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.header_text_white))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        headerLayout.addView(headerText)
+        messageLayout.addView(headerLayout)
+        
+        // Main answer text with WhatsApp styling
+        val mainAnswerText = TextView(this).apply {
+            text = structuredResponse.mainAnswer // Clean text (header has icon)
+            textSize = 16f // Consistent with user messages
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+            setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
+            setPadding(16, 8, 16, 8) // Padding for text content
+        }
+        messageLayout.addView(mainAnswerText)
+        
+        // Action items section if they exist
+        if (structuredResponse.actionItems.isNotEmpty()) {
+            // Add spacing between main answer and actions
+            val spacing = LinearLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    12
+                ) // 12dp spacing like WhatsApp
+            }
+            messageLayout.addView(spacing)
             
-            Log.d(TAG, "Adding assistant message to history. Current length: ${conversationHistory.length}")
-            conversationHistory.append(assistantMsg)
-            Log.d(TAG, "After adding assistant message. New length: ${conversationHistory.length}")
+            // Action items header with better styling
+            val actionHeader = TextView(this).apply {
+                text = "📋 Quick Actions:"
+                textSize = 15f // Slightly smaller for section headers
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(0, 4, 0, 8) // WhatsApp-like spacing
+            }
+            messageLayout.addView(actionHeader)
             
-            updateConversationDisplay()
+            // Create clickable action items with WhatsApp-like styling
+            structuredResponse.actionItems.forEach { actionItem ->
+                val actionTextView = TextView(this).apply {
+                    val actionText = "• $actionItem"
+                    val spannableString = SpannableString(actionText)
+                    
+                    // Make the entire action item clickable
+                    val clickableSpan = object : ClickableSpan() {
+                        override fun onClick(view: View) {
+                            messageInput.setText(actionItem.trim())
+                            conversationScrollView.post {
+                                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                            }
+                            Toast.makeText(this@MainActivity, "Action added to input", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                    // Apply styling to make it look clickable
+                    spannableString.setSpan(clickableSpan, 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(
+                        ForegroundColorSpan(ContextCompat.getColor(this@MainActivity, R.color.action_item_color)), 
+                        0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    spannableString.setSpan(UnderlineSpan(), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(StyleSpan(android.graphics.Typeface.BOLD), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    
+                    text = spannableString
+                    textSize = 15f // WhatsApp-like action item size
+                    setLineSpacing(3f, 1.1f) // WhatsApp-like line spacing
+                    movementMethod = LinkMovementMethod.getInstance()
+                    setPadding(12, 6, 0, 6) // WhatsApp-like padding
+                }
+                messageLayout.addView(actionTextView)
+            }
+        }
+    }
+    
+    // Helper method to create streaming action items view (with checkmarks ✓)
+    private fun createStreamingActionItemsView(messageLayout: LinearLayout, messageText: String) {
+        // Add header with icon and "Sasya Chikitsa" label with colored background
+        val headerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(12, 6, 12, 6) // Padding for colored background
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_header_bg))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, 8) // Space between header and content
+            }
+        }
+        
+        val headerText = TextView(this).apply {
+            text = "🤖 Sasya Chikitsa"
+            textSize = 14f // Smaller header text
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.header_text_white))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        headerLayout.addView(headerText)
+        messageLayout.addView(headerLayout)
+        val lines = messageText.split("\n")
+        var inActionSection = false
+        val regularContent = mutableListOf<String>()
+        val actionItems = mutableListOf<String>()
+        
+        // Parse the message to separate regular content from action items
+        for (line in lines) {
+            when {
+                line.contains("📋 Recommended Actions:") -> {
+                    inActionSection = true
+                }
+                inActionSection && line.trim().startsWith("✓") -> {
+                    // Extract action item (remove the checkmark and whitespace)
+                    val actionText = line.trim().removePrefix("✓").trim()
+                    if (actionText.isNotEmpty()) {
+                        actionItems.add(actionText)
+                    }
+                }
+                !inActionSection && line.trim().isNotEmpty() -> {
+                    regularContent.add(line)
+                }
+            }
+        }
+        
+        // Display regular content (bullet points)
+        if (regularContent.isNotEmpty()) {
+            val regularText = TextView(this).apply {
+                // Clean content without emoji prefix (header has it)
+                val cleanContent = regularContent.joinToString("\n").removePrefix("🤖 ").trim()
+                text = cleanContent
+                textSize = 16f // Consistent with other messages
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+                setLineSpacing(4f, 1.1f) // WhatsApp-like line spacing
+                setPadding(16, 8, 16, 8) // Padding for text content
+            }
+            messageLayout.addView(regularText)
+        }
+        
+        // Display action items section if they exist
+        if (actionItems.isNotEmpty()) {
+            // Add WhatsApp-like spacing between content and actions
+            val spacing = LinearLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    12
+                ) // 12dp spacing like WhatsApp
+            }
+            messageLayout.addView(spacing)
+            
+            // Action items header with WhatsApp-like styling  
+            val actionHeader = TextView(this).apply {
+                text = "📋 Recommended Actions:"
+                textSize = 15f // Slightly smaller for section headers like WhatsApp
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.assistant_text))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(0, 4, 0, 8) // WhatsApp-like spacing
+            }
+            messageLayout.addView(actionHeader)
+            
+            // Create clickable action items with checkmarks
+            actionItems.forEach { actionItem ->
+                val actionTextView = TextView(this).apply {
+                    val actionText = "  ✓ $actionItem"
+                    val spannableString = SpannableString(actionText)
+                    
+                    // Make the action item clickable (skip the checkmark part)
+                    val clickableSpan = object : ClickableSpan() {
+                        override fun onClick(view: View) {
+                            messageInput.setText(actionItem.trim())
+                            conversationScrollView.post {
+                                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                            }
+                            Toast.makeText(this@MainActivity, "Action added to input", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                    // Apply styling to make it look clickable
+                    spannableString.setSpan(clickableSpan, 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(
+                        ForegroundColorSpan(ContextCompat.getColor(this@MainActivity, R.color.action_item_color)), 
+                        0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    spannableString.setSpan(UnderlineSpan(), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannableString.setSpan(StyleSpan(android.graphics.Typeface.BOLD), 0, actionText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    
+                    text = spannableString
+                    textSize = 15f // WhatsApp-like action item size
+                    setLineSpacing(3f, 1.1f) // WhatsApp-like line spacing
+                    movementMethod = LinkMovementMethod.getInstance()
+                    setPadding(12, 6, 0, 6) // WhatsApp-like padding
+                }
+                messageLayout.addView(actionTextView)
+            }
         }
     }
 
@@ -308,11 +761,22 @@ class MainActivity : ComponentActivity() {
         val spannableMessage = SpannableString(assistantMsg)
         applyActionItemSpansToText(spannableMessage, actionItems)
         
-        // Append to conversation history
+        // Add to new conversation messages list (convert SpannableString to String)
+        val conversationMsg = ConversationMessage(
+            text = spannableMessage.toString(),
+            isUser = false,
+            imageUri = null
+        )
+        conversationMessages.add(conversationMsg)
+        
+        // Append to legacy conversation history
         conversationHistory.append(spannableMessage)
         Log.d(TAG, "After adding structured assistant message. New length: ${conversationHistory.length}")
         
         updateConversationDisplay()
+        
+        // Ensure user can see the complete response including action items
+        scrollToResponseEnd()
     }
 
     // Helper method to apply action item spans to a specific text
@@ -559,58 +1023,298 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Robust scrolling method to ensure user sees the complete response
+     * Uses multiple approaches and timing to guarantee scroll to bottom
+     */
+    private fun scrollToResponseEnd() {
+        runOnUiThread {
+            // Method 1: Immediate scroll attempt
+            conversationScrollView.post {
+                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+            }
+            
+            // Method 2: Wait for layout and scroll to actual bottom
+            conversationScrollView.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    conversationScrollView.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    
+                    // Calculate the actual bottom position
+                    val scrollViewHeight = conversationScrollView.height
+                    val contentHeight = conversationContainer.height + responseTextView.height
+                    val targetScrollY = maxOf(0, contentHeight - scrollViewHeight + 100) // +100px padding
+                    
+                    // Smooth scroll to the calculated position
+                    conversationScrollView.smoothScrollTo(0, targetScrollY)
+                    
+                    // Backup: Force full scroll after smooth scroll
+                    conversationScrollView.postDelayed({
+                        conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                    }, 300)
+                }
+            })
+            
+            // Method 3: Aggressive backup scrolling with multiple delays
+            conversationScrollView.postDelayed({
+                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+            }, 150)
+            
+            conversationScrollView.postDelayed({
+                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+            }, 500)
+            
+            // Method 4: Final fallback scroll
+            conversationScrollView.postDelayed({
+                val scrollViewHeight = conversationScrollView.height
+                val contentHeight = conversationScrollView.getChildAt(0).height
+                conversationScrollView.smoothScrollTo(0, contentHeight - scrollViewHeight + 50)
+            }, 800)
+            
+            // Comprehensive scroll to response end initiated (removed noisy logging)
+        }
+    }
+
     // Helper method to update conversation display and scroll to bottom
     private fun updateConversationDisplay() {
         runOnUiThread {
-            Log.d(TAG, "Updating conversation display. History length: ${conversationHistory.length}")
+            Log.d(TAG, "Updating conversation display. Messages: ${conversationMessages.size}")
             
-            // Set the spannable text directly to preserve existing formatting and spans
-            responseTextView.text = conversationHistory
-            responseTextView.movementMethod = LinkMovementMethod.getInstance()
+            // Clear existing conversation views (except welcome message)
+            if (conversationContainer.childCount > 1) {
+                conversationContainer.removeViews(1, conversationContainer.childCount - 1)
+            }
             
-            Log.d(TAG, "Display updated. TextView length: ${responseTextView.text.length}")
+            // Add each conversation message as a separate view
+            for (message in conversationMessages) {
+                val messageView = if (message.isUser) {
+                    createUserMessageView(message)
+                } else {
+                    createAssistantMessageView(message)
+                }
+                conversationContainer.addView(messageView)
+            }
+            
+            // Only update legacy TextView if NOT currently streaming to avoid wiping streaming content
+            if (!isCurrentlyStreaming) {
+                responseTextView.text = conversationHistory
+                responseTextView.movementMethod = LinkMovementMethod.getInstance()
+                Log.d(TAG, "Updated legacy TextView (not streaming)")
+            } else {
+                Log.d(TAG, "Skipping TextView update - streaming in progress")
+            }
+            
+            Log.d(TAG, "Display updated. Message views: ${conversationMessages.size}")
             
             // Force layout update
             responseTextView.requestLayout()
             
-            // Enhanced scroll to bottom with proper timing for ScrollView
-            conversationScrollView.post {
-                conversationScrollView.postDelayed({
-                    conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
-                }, 100)
-                
-                conversationScrollView.postDelayed({
-                    conversationScrollView.smoothScrollTo(0, responseTextView.bottom)
-                }, 200)
-            }
+            // Enhanced scroll to bottom - ensure user sees complete response
+            scrollToResponseEnd()
         }
     }
 
-    // Helper method to show typing indicator - ONLY appends, never reconstructs
-    private fun showTypingIndicator() {
+    // Variables for animated thinking indicator
+    private var thinkingAnimation: Runnable? = null
+    private var isThinking = false
+
+    // Helper method to show animated thinking indicator with animated dots
+    private fun showAnimatedThinkingIndicator() {
         runOnUiThread {
-            // Simply append typing indicator to existing text without touching conversationHistory
-            if (!responseTextView.text.toString().endsWith("🤖 typing...\n")) {
-                responseTextView.append("🤖 typing...\n")
+            Log.d(TAG, "🤔 Starting animated thinking indicator")
+            
+            // Mark that we're thinking
+            isThinking = true
+            
+            // Add initial thinking message
+            responseTextView.append("🤖 Sasya Chikitsa AI Agent Thinking")
+            
+            // Start dot animation
+            startThinkingDotAnimation()
+            
+            // Scroll to show indicator
+            scrollToResponseEnd()
+        }
+    }
+    
+    private fun startThinkingDotAnimation() {
+        var dotCount = 0
+        
+        thinkingAnimation = object : Runnable {
+            override fun run() {
+                // Stop if we're no longer thinking or streaming has started
+                if (!isThinking || isCurrentlyStreaming) {
+                    Log.d(TAG, "🛑 Stopping thinking animation - streaming started: $isCurrentlyStreaming")
+                    return
+                }
+                
+                runOnUiThread {
+                    val currentText = responseTextView.text.toString()
+                    val lines = currentText.split("\n").toMutableList()
+                    
+                    // Find and update the thinking line
+                    for (i in lines.indices.reversed()) {
+                        if (lines[i].contains("Sasya Chikitsa AI Agent Thinking")) {
+                            // Create animated dots (1-4 dots cycling)
+                            val dots = ".".repeat((dotCount % 4) + 1)
+                            lines[i] = "🤖 Sasya Chikitsa AI Agent Thinking$dots"
+                            break
+                        }
+                    }
+                    
+                    // Update the display
+                    responseTextView.text = lines.joinToString("\n")
+                    scrollToResponseEnd()
+                    
+                    dotCount++
+                    
+                    // Continue animation every 500ms
+                    responseTextView.postDelayed(this, 500)
+                }
+            }
+        }
+        
+        // Start the animation
+        responseTextView.postDelayed(thinkingAnimation!!, 500)
+    }
+    
+    private fun stopThinkingIndicator() {
+        runOnUiThread {
+            Log.d(TAG, "🛑 Stopping thinking indicator")
+            
+            isThinking = false
+            
+            // Cancel any pending animation
+            thinkingAnimation?.let { responseTextView.removeCallbacks(it) }
+            
+            // Remove thinking indicator from display
+            val currentText = responseTextView.text.toString()
+            val lines = currentText.split("\n").toMutableList()
+            lines.removeAll { line -> 
+                line.contains("Sasya Chikitsa AI Agent Thinking") 
             }
             
-            // Enhanced scroll to show typing indicator
-            conversationScrollView.post {
-                conversationScrollView.smoothScrollTo(0, responseTextView.bottom)
-            }
-            conversationScrollView.postDelayed({
-                conversationScrollView.fullScroll(ScrollView.FOCUS_DOWN)
-            }, 50)
+            responseTextView.text = lines.joinToString("\n")
+            Log.d(TAG, "✅ Thinking indicator removed")
         }
+    }
+
+    // Helper method to show engaging progress indicator - keeps users engaged during AI processing
+    private fun showTypingIndicator() {
+        runOnUiThread {
+            Log.d(TAG, "🎯 Starting engaging progress indicator for plant analysis")
+            
+            // Remove any existing indicator first
+            val currentText = responseTextView.text.toString()
+            if (currentText.contains("🤖 typing")) {
+                val lines = currentText.split("\n").toMutableList()
+                // Remove typing lines
+                lines.removeAll { it.contains("typing") || it.contains("⚡") || it.contains("🧠") }
+                responseTextView.text = lines.joinToString("\n")
+            }
+            
+            // Add engaging plant analysis header
+            responseTextView.append("🤖 Sasya Chikitsa AI Analyzing...\n")
+            responseTextView.append("🌱 Examining your plant health\n")
+            responseTextView.append("🔍 Running disease detection algorithms\n")
+            
+            // Start animated progress dots
+            startProgressAnimation()
+            
+            // Enhanced scroll to show indicator
+            scrollToResponseEnd()
+        }
+    }
+    
+    private fun startProgressAnimation() {
+        // Create animated progress indicator to keep users engaged
+        val progressRunnable = object : Runnable {
+            private var dotCount = 0
+            private var progressStep = 0
+            
+            override fun run() {
+                // Stop animation if streaming has started
+                if (isCurrentlyStreaming) {
+                    Log.d(TAG, "🛑 Stopping progress animation - streaming started")
+                    return
+                }
+                
+                runOnUiThread {
+                    val currentText = responseTextView.text.toString()
+                    
+                    // Remove previous progress line if exists
+                    val lines = currentText.split("\n").toMutableList()
+                    if (lines.isNotEmpty() && (lines.last().startsWith("⚡") || lines.last().startsWith("🧠") || lines.last().startsWith("🔬"))) {
+                        lines.removeAt(lines.size - 1)
+                        if (lines.isNotEmpty() && lines.last().isEmpty()) {
+                            lines.removeAt(lines.size - 1)
+                        }
+                    }
+                    
+                    // Create animated progress with agricultural context
+                    val dots = ".".repeat((dotCount % 4) + 1)
+                    val progressTexts = arrayOf(
+                        "⚡ Preprocessing plant image$dots",
+                        "🧠 CNN neural network analyzing$dots", 
+                        "🔬 Detecting disease symptoms$dots",
+                        "📊 Calculating confidence levels$dots",
+                        "💊 Preparing treatment recommendations$dots",
+                        "🌱 Finalizing plant diagnosis$dots"
+                    )
+                    
+                    val progressText = progressTexts[progressStep % progressTexts.size]
+                    lines.add(progressText)
+                    
+                    responseTextView.text = lines.joinToString("\n") + "\n"
+                    scrollToResponseEnd()
+                    
+                    dotCount++
+                    if (dotCount % 4 == 0) {
+                        progressStep++
+                    }
+                    
+                    // Continue animation every 400ms for smooth progress feel
+                    responseTextView.postDelayed(this, 400)
+                }
+            }
+        }
+        
+        // Start the animation after a small delay
+        responseTextView.postDelayed(progressRunnable, 200)
     }
 
     // Helper method to remove typing indicator - restores from conversationHistory
     private fun removeTypingIndicator() {
         runOnUiThread {
-            Log.d(TAG, "Removing typing indicator. Restoring from history length: ${conversationHistory.length}")
-            // Only restore from conversationHistory, never reconstruct
-            responseTextView.text = conversationHistory.toString()
-            Log.d(TAG, "Typing indicator removed. TextView length: ${responseTextView.text.length}")
+            Log.d(TAG, "🧹 Removing all typing/progress/thinking indicators")
+            
+            // Stop any thinking animation
+            stopThinkingIndicator()
+            
+            // Remove any typing-related text including all indicators
+            val currentText = responseTextView.text.toString()
+            val lines = currentText.split("\n").toMutableList()
+            
+            // Remove typing, progress, thinking, and analysis indicators
+            lines.removeAll { line ->
+                line.contains("Typing...") || 
+                line.contains("typing") || 
+                line.contains("Thinking") ||
+                line.contains("⚡") || 
+                line.contains("🧠") || 
+                line.contains("🔬") || 
+                line.contains("📊") || 
+                line.contains("💊") || 
+                line.contains("🌱") ||
+                line.contains("Analyzing...") ||
+                line.contains("Examining") ||
+                line.contains("Sasya Chikitsa AI Agent Typing") ||
+                line.contains("Sasya Chikitsa AI Agent Thinking")
+            }
+            
+            // Restore clean text
+            responseTextView.text = lines.joinToString("\n")
+            
+            Log.d(TAG, "✅ All typing/progress/thinking indicators removed. Clean text restored.")
         }
     }
 
@@ -624,23 +1328,72 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Create ImageView for attention overlay visualization from base64 data
+     */
+    private fun createAttentionOverlayImageView(base64Data: String): ImageView? {
+        return try {
+            Log.i(TAG, "🎨 Creating attention overlay ImageView")
+            
+            // Decode base64 to bitmap
+            val imageBytes = Base64.decode(base64Data, Base64.DEFAULT)
+            val bitmap = android.graphics.BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+            
+            if (bitmap != null) {
+                // Create ImageView with proper styling
+                val imageView = ImageView(this)
+                imageView.setImageBitmap(bitmap)
+                imageView.scaleType = ImageView.ScaleType.FIT_CENTER
+                imageView.adjustViewBounds = true
+                
+                // Set layout parameters for the image
+                val layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                layoutParams.setMargins(16, 16, 16, 16) // Add margins
+                imageView.layoutParams = layoutParams
+                
+                // Add styling - rounded corners, elevation
+                imageView.setPadding(8, 8, 8, 8)
+                imageView.background = ContextCompat.getDrawable(this, R.drawable.modern_card_background)
+                
+                Log.i(TAG, "   ✅ Attention overlay ImageView created successfully")
+                Log.i(TAG, "   📏 Image dimensions: ${bitmap.width} x ${bitmap.height}")
+                
+                imageView
+            } else {
+                Log.e(TAG, "   ❌ Failed to decode bitmap from base64 data")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "   ❌ Exception creating attention overlay ImageView: ${e.message}")
+            null
+        }
+    }
+    
+    /**
      * Add a streaming chunk immediately to the UI while preserving conversation history
      */
     private fun addStreamingChunk(chunk: String) {
         runOnUiThread {
-            // 📊 ENHANCED LOGGING - Track streaming chunks
-            Log.i(TAG, "🔥 STREAMING CHUNK RECEIVED:")
+            val currentTime = System.currentTimeMillis()
+            
+            // 📊 ENHANCED LOGGING - Track streaming chunks with precise timing
+            Log.i(TAG, "🔥 STREAMING CHUNK RECEIVED FOR DISPLAY:")
             Log.i(TAG, "   📦 Chunk content: '$chunk'")
             Log.i(TAG, "   📊 Chunk length: ${chunk.length} characters")
-            Log.i(TAG, "   ⏰ Timestamp: ${System.currentTimeMillis()}")
+            Log.i(TAG, "   ⏰ Display timestamp: $currentTime")
             Log.i(TAG, "   🔄 Currently streaming: $isCurrentlyStreaming")
             Log.i(TAG, "   📈 Total chunks so far: ${streamingChunks.size}")
+            Log.i(TAG, "   🎯 About to display this chunk individually")
             
             if (!isCurrentlyStreaming) {
-                // Starting new streaming - clear any typing indicator
+                // Starting new streaming - clear any thinking/typing indicators
                 Log.i(TAG, "🚀 STARTING NEW STREAMING SESSION")
-                removeTypingIndicator()
+                stopThinkingIndicator() // Stop animated thinking dots
+                removeTypingIndicator() // Remove any other typing indicators
                 streamingChunks.clear()
+                currentAttentionOverlayData = null // Clear previous attention data
                 isCurrentlyStreaming = true
                 
                 // Add assistant header for the streaming response
@@ -651,8 +1404,30 @@ class MainActivity : ComponentActivity() {
             // Add the chunk to the display and track it
             streamingChunks.add(chunk)
             
-            // 🔍 PIPE-SEPARATED ACTION ITEMS DETECTION
-            if (isPipeSeperatedActionItems(chunk)) {
+            // 🎯 ATTENTION OVERLAY IMAGE DETECTION
+            if (chunk.startsWith("ATTENTION_OVERLAY_BASE64:")) {
+                Log.i(TAG, "🎯 ATTENTION OVERLAY CHUNK DETECTED!")
+                Log.i(TAG, "   🖼️ Processing attention visualization image")
+                
+                // Extract base64 data after the prefix
+                val base64Data = chunk.substring("ATTENTION_OVERLAY_BASE64:".length)
+                Log.i(TAG, "   📊 Base64 data length: ${base64Data.length} characters")
+                
+                // Store the attention overlay data for later rendering
+                currentAttentionOverlayData = base64Data
+                
+                // Add explanatory text to the stream
+                responseTextView.append("\n🎯 AI Attention Map - Focus Areas:\n")
+                responseTextView.append("  👁️ The highlighted areas show where the AI focused during disease detection\n")
+                responseTextView.append("  🖼️ Generating attention heatmap visualization...\n")
+                
+                // Don't add this chunk to streamingChunks since we handle it separately
+                Log.i(TAG, "   ✅ Attention overlay data stored for rendering")
+                // Return early to avoid adding to streamingChunks
+                return@runOnUiThread
+                
+            } else if (isPipeSeperatedActionItems(chunk)) {
+                // 🔍 PIPE-SEPARATED ACTION ITEMS DETECTION
                 Log.i(TAG, "🎯 DETECTED PIPE-SEPARATED ACTION ITEMS:")
                 Log.i(TAG, "   📋 Raw action items: '$chunk'")
                 
@@ -679,48 +1454,97 @@ class MainActivity : ComponentActivity() {
                 Log.i(TAG, "   💡 Formatted as regular bullet point: '$bulletPointChunk'")
             }
             
-            Log.i(TAG, "   📱 Added to responseTextView display")
+            Log.i(TAG, "   📱 CHUNK DISPLAYED ON SCREEN")
+            Log.i(TAG, "   ⏰ Screen display time: ${System.currentTimeMillis()}")
+            Log.i(TAG, "   ✅ Individual chunk streaming successful")
             
-            // Auto-scroll to show new content
-            conversationScrollView.post {
-                conversationScrollView.smoothScrollTo(0, responseTextView.bottom)
-                Log.d(TAG, "   📜 Auto-scrolled to show new content")
-            }
+            // Auto-scroll to show new content with robust scrolling
+            scrollToResponseEnd()
+            Log.d(TAG, "   📜 Auto-scrolled to show new content")
             
             Log.i(TAG, "✅ STREAMING CHUNK PROCESSED SUCCESSFULLY")
             Log.i(TAG, "   📊 Updated total chunks: ${streamingChunks.size}")
-            Log.i(TAG, "   🎯 Display format: Bullet point list")
+            Log.i(TAG, "   🎯 Display format: Bullet point list / Attention image")
             Log.i(TAG, "   " + "=".repeat(50))
         }
     }
-
+    
+    // Helper method to reconstruct streaming bullet format from collected chunks
+    private fun reconstructStreamedBulletFormat(chunks: List<String>): String {
+        val result = StringBuilder()
+        var hasActionItems = false
+        
+        // First, check if we have any pipe-separated action items
+        val actionItemChunks = chunks.filter { isPipeSeperatedActionItems(it) }
+        val regularChunks = chunks.filter { !isPipeSeperatedActionItems(it) }
+        
+        // Add regular bullet points first
+        if (regularChunks.isNotEmpty()) {
+            regularChunks.forEach { chunk ->
+                result.append("  • $chunk\n")
+            }
+        }
+        
+        // Add action items with special formatting
+        if (actionItemChunks.isNotEmpty()) {
+            if (result.isNotEmpty()) {
+                result.append("\n") // Add spacing before action items
+            }
+            result.append("📋 Recommended Actions:\n")
+            
+            actionItemChunks.forEach { chunk ->
+                val actionItems = chunk.split("|").map { it.trim() }.filter { it.isNotEmpty() }
+                actionItems.forEach { actionItem ->
+                    result.append("  ✓ $actionItem\n")
+                }
+            }
+            hasActionItems = true
+        }
+        
+        Log.d(TAG, "Reconstructed streamed format with ${regularChunks.size} bullets and ${actionItemChunks.size} action item chunks")
+        return result.toString().trimEnd()
+    }
+    
     /**
      * Finalize streaming response and add it to conversation history
      */
     private fun finalizeStreamingResponse() {
         runOnUiThread {
+            // Ensure thinking animation is completely stopped
+            stopThinkingIndicator()
+            
             // 📊 ENHANCED FINALIZATION LOGGING
             Log.i(TAG, "🏁 FINALIZING STREAMING RESPONSE:")
             Log.i(TAG, "   🔄 Currently streaming: $isCurrentlyStreaming")
             Log.i(TAG, "   📦 Chunks collected: ${streamingChunks.size}")
             
             if (isCurrentlyStreaming && streamingChunks.isNotEmpty()) {
-                Log.i(TAG, "✅ PROCESSING COLLECTED STREAMING CHUNKS:")
-                Log.i(TAG, "   📊 Total chunks to finalize: ${streamingChunks.size}")
+                Log.i(TAG, "✅ PRESERVING REAL-TIME STREAMED DISPLAY:")
+                Log.i(TAG, "   📊 Total chunks streamed individually: ${streamingChunks.size}")
+                Log.i(TAG, "   🔄 Chunks were displayed in real-time, now preserving for history")
                 
-                // Log all collected chunks
+                // Log chunks for debugging (they were already displayed individually)
                 streamingChunks.forEachIndexed { index, chunk ->
-                    Log.i(TAG, "   📦 Chunk ${index + 1}: '$chunk'")
+                    Log.i(TAG, "   📦 Chunk ${index + 1} (already displayed): '$chunk'")
                 }
                 
-                // Combine all chunks into the final message
-                val fullStreamingResponse = streamingChunks.joinToString("\n")
+                // DON'T combine chunks - preserve the real-time streaming nature
+                // The chunks have already been displayed in real-time via addStreamingChunk()
+                // Now we just need to preserve the current streamed display for conversation history
                 
-                // IMPORTANT: Don't call addAssistantMessage() as it overwrites the streaming display!
-                // Instead, add the streamed content directly to conversation history
+                // Get the current displayed content (which shows the real-time streaming result)
+                val currentDisplayedContent = responseTextView.text.toString()
                 
-                // Check if this is a structured response
-                val structuredResponse = parseStructuredResponse(fullStreamingResponse)
+                // Extract just the streamed response part (after the last "🤖" header)
+                val lastBotIndex = currentDisplayedContent.lastIndexOf("🤖")
+                val streamedContent = if (lastBotIndex != -1) {
+                    currentDisplayedContent.substring(lastBotIndex)
+                } else {
+                    currentDisplayedContent
+                }
+                
+                // Check if the streamed content represents a structured response
+                val structuredResponse = parseStructuredResponse(streamedContent)
                 
                 if (structuredResponse != null) {
                     // Handle structured response - format with action items
@@ -735,29 +1559,82 @@ class MainActivity : ComponentActivity() {
                     }
                     assistantMsg += "\n\n"
                     
-                    // Create spannable and add to history
+                    // Add to new conversation messages list
+                    val conversationMsg = ConversationMessage(
+                        text = assistantMsg.removePrefix("🤖 "), // Remove emoji for clean display
+                        isUser = false,
+                        imageUri = null
+                    )
+                    conversationMessages.add(conversationMsg)
+                    
+                    // Create spannable and add to legacy history
                     val spannableMessage = SpannableString(assistantMsg)
                     applyActionItemSpansToText(spannableMessage, structuredResponse.actionItems)
                     conversationHistory.append(spannableMessage)
                 } else {
-                    // Handle regular response - just add streamed content to history
-                    val formattedMessage = formatMessageWithCollapsibleJson(fullStreamingResponse)
-                    val assistantMsg = "🤖 $formattedMessage\n\n"
-                    conversationHistory.append(assistantMsg)
+                    // Handle regular response - use the real-time streamed content as-is
+                    // No need to reconstruct since we're preserving the actual streamed display
+                    
+                    // Add to new conversation messages list (use the actual streamed display)
+                    val conversationMsg = ConversationMessage(
+                        text = streamedContent, // This preserves the actual real-time streamed formatting
+                        isUser = false,
+                        imageUri = null
+                    )
+                    conversationMessages.add(conversationMsg)
+                    
+                    // Add to legacy history
+                    conversationHistory.append("$streamedContent\n\n")
                 }
                 
-                Log.d(TAG, "Streaming content added to conversation history. New length: ${conversationHistory.length}")
+                Log.i(TAG, "✅ REAL-TIME STREAMING PRESERVED:")
+                Log.i(TAG, "   🔄 Used actual streamed display instead of combining chunks")
+                Log.i(TAG, "   💾 Conversation history updated with streamed content")
+                Log.i(TAG, "   📊 New conversation history length: ${conversationHistory.length}")
                 
                 // Clean up streaming state
                 val totalChunks = streamingChunks.size
                 streamingChunks.clear()
                 isCurrentlyStreaming = false
                 
+                // Now update conversation display with the new message
+                updateConversationDisplay()
+                
+                // Render attention overlay image if available
+                if (currentAttentionOverlayData != null) {
+                    Log.i(TAG, "🎯 RENDERING ATTENTION OVERLAY IMAGE:")
+                    Log.i(TAG, "   📊 Base64 data length: ${currentAttentionOverlayData!!.length} characters")
+                    
+                    try {
+                        val attentionImageView = createAttentionOverlayImageView(currentAttentionOverlayData!!)
+                        if (attentionImageView != null) {
+                            // Add the image to the conversation container
+                            conversationContainer.addView(attentionImageView)
+                            
+                            Log.i(TAG, "   ✅ Attention overlay image rendered successfully")
+                            Log.i(TAG, "   🖼️ Image added to conversation container")
+                        } else {
+                            Log.e(TAG, "   ❌ Failed to create attention overlay ImageView")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "   ❌ Error rendering attention overlay: ${e.message}")
+                    }
+                    
+                    // Clear the stored data
+                    currentAttentionOverlayData = null
+                    Log.i(TAG, "   🧹 Attention overlay data cleared")
+                }
+                
+                // Ensure user can see the complete response with robust scrolling
+                scrollToResponseEnd()
+                
                 Log.i(TAG, "🧹 STREAMING STATE CLEANUP COMPLETE:")
                 Log.i(TAG, "   ✅ Processed ${totalChunks} chunks total")
                 Log.i(TAG, "   🔄 Streaming state reset")
                 Log.i(TAG, "   💾 Content added to conversation history")
+                Log.i(TAG, "   📱 Conversation display updated with new message")
                 Log.i(TAG, "   🎯 Bullet point formatting preserved")
+                Log.i(TAG, "   🖼️ Attention overlay rendered if available")
                 Log.i(TAG, "✅ STREAMING RESPONSE FINALIZED SUCCESSFULLY")
             } else {
                 // Just remove typing indicator if no streaming happened
@@ -826,7 +1703,7 @@ class MainActivity : ComponentActivity() {
         sessionId: String?
         // text: String? // Add if required in ChatRequestData
     ) {
-        showTypingIndicator() // Show typing indicator instead of overwriting
+        showAnimatedThinkingIndicator() // Show animated thinking indicator with dots
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val requestData = ChatRequestData(
@@ -883,13 +1760,14 @@ class MainActivity : ComponentActivity() {
                                         Log.i(TAG, "   📤 About to send to addStreamingChunk()")
                                         Log.i(TAG, "   🎯 Chunk will be formatted as bullet point")
                                         
-                                        // Display each chunk immediately on UI thread
+                                        // Display each chunk immediately - server-side delays now handle timing
                                         withContext(Dispatchers.Main) {
                                             addStreamingChunk(actualData)
                                         }
                                         
-                                        Log.i(TAG, "✅ CHUNK PROCESSING COMPLETE")
-                                        Log.i(TAG, "   📱 Chunk sent to UI thread for display")
+                                        Log.i(TAG, "✅ CHUNK DISPLAYED IMMEDIATELY - server controls timing")
+                                        Log.i(TAG, "   📡 Server-side delays now handle proper streaming pace")
+                                        Log.i(TAG, "   📱 Client displays chunks as they arrive")
                                     } else {
                                         Log.w(TAG, "⚠️  Empty actualData received, skipping display")
                                     }
@@ -904,12 +1782,14 @@ class MainActivity : ComponentActivity() {
                                     Log.i(TAG, "🚀 PROCESSING PLAIN TEXT CHUNK:")
                                     Log.i(TAG, "   📤 About to send to addStreamingChunk()")
                                     
-                                    // Display each line immediately on UI thread
+                                    // Display each line immediately - server-side delays now handle timing
                                     withContext(Dispatchers.Main) {
                                         addStreamingChunk(currentLine)
                                     }
                                     
-                                    Log.i(TAG, "✅ PLAIN TEXT CHUNK PROCESSED")
+                                    Log.i(TAG, "✅ PLAIN TEXT CHUNK DISPLAYED IMMEDIATELY")
+                                    Log.i(TAG, "   📡 Server-side controls streaming timing")
+                                    Log.i(TAG, "   📱 Client displays chunks as received")
                                 }
                             }
                             

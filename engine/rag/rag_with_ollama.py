@@ -120,7 +120,7 @@ class ollama_rag:
         return answer
 
 
-ollama_rag_object = ollama_rag(llm_name="llama-3.1-8b",temperature=1)
+ollama_rag_object = ollama_rag(llm_name="llama-3.1:8b",temperature=1)
 
 ollama_rag_object.call_embeddings(
     embedding_model="intfloat/multilingual-e5-large-instruct", collection_name="Tomato"

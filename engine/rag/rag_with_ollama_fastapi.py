@@ -15,7 +15,7 @@ ollama_host = os.getenv("OLLAMA_HOST")
 print(f"DEBUG: in rag_with_ollama_fastapi.py file OLLAMA_HOST={ollama_host}")
 
 if ollama_host:
-    llm = ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"), temperature=0.1, base_url=ollama_host)
+    llm = ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"), temperature=0.1, base_url=ollama_host, reasoning=False)
 else:
     print("OLLAMA_HOST not set, using default local settings")
     # llm = ChatOllama(model="llama3.1:8b", temperature=0.1)

@@ -1,10 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
+    <!-- Earthly Plant Disease App Theme -->
+    
+    <!-- Primary Earth Greens -->
+    <color name="forest_green_light">#4CAF50</color>
+    <color name="forest_green">#2E7D32</color>
+    <color name="forest_green_dark">#1B5E20</color>
+    
+    <!-- Secondary Sage/Olive Greens -->
+    <color name="sage_green_light">#81C784</color>
+    <color name="sage_green">#66BB6A</color>
+    <color name="olive_green">#689F38</color>
+    
+    <!-- Earth Browns -->
+    <color name="soil_brown_light">#A1887F</color>
+    <color name="soil_brown">#795548</color>
+    <color name="bark_brown">#5D4037</color>
+    <color name="rich_brown">#3E2723</color>
+    
+    <!-- Natural Accent Colors -->
+    <color name="warm_amber">#FFA726</color>
+    <color name="golden_harvest">#FFB74D</color>
+    <color name="earth_orange">#FF8A65</color>
+    
+    <!-- Background & Surface Colors -->
+    <color name="clean_white">#FFFFFF</color>
+    <color name="soft_white">#FAFAFA</color>
+    <color name="light_green_bg">#E8F5E8</color>
+    <color name="sage_bg">#F1F8E9</color>
+    
+    <!-- Text Colors -->
+    <color name="earth_text_primary">#2E2E2E</color>
+    <color name="earth_text_secondary">#5D4037</color>
+    <color name="earth_text_accent">#1B5E20</color>
+    
+    <!-- Legacy colors for compatibility -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    
+    <!-- User & Assistant Message Colors - ENHANCED CONTRAST -->
+    <color name="user_message_bg">#C8E6C9</color>      <!-- Strong light green for user -->
+    <color name="assistant_message_bg">#F5F5F5</color>  <!-- Light gray for assistant -->
+    <color name="user_text">#1B5E20</color>            <!-- Dark forest green -->
+    <color name="assistant_text">#000000</color>        <!-- Pure black for maximum readability -->
+    <color name="action_item_color">#1976D2</color>     <!-- Blue for clickable items -->
+    
+    <!-- Additional Chat Colors -->
+    <color name="user_header_bg">#4CAF50</color>        <!-- Green header background -->
+    <color name="assistant_header_bg">#2196F3</color>   <!-- Blue header background -->
+    <color name="header_text_white">#FFFFFF</color>     <!-- White text for headers -->
 </resources>

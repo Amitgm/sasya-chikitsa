@@ -30,6 +30,19 @@ Step 4 : Update MainActivity.kt file with my code in app/src/main/java folder
 Step 5: Run on Emulator (Click Run Button on Top ) -- It will take 5-6 min to connect and Run the Emulator
 
 
+## How to check logs
+
+```bash
+# get the temp token from the system admin or self generate.
+oc login --token=$(echo $OCP_TOKEN) --server=https://api.cluster-mx6z7.mx6z7.sandbox5315.opentlc.com:6443
+
+oc get pods -n sasya-chikitsa
+
+oc logs -f engine-5947d8d5f5-w52l4 -n sasya-chikitsa 
+
+oc logs -f llama318b-6984764f89-22vjl -n sasya-chikitsa
+```
+
 ## Instruction for running MADR on local
 
 ```bash

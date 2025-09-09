@@ -76,7 +76,7 @@
                     android:id="@+id/serverStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="📡 Server: Android Emulator"
+                    android:text="Server : Sasya-Chikitsa"
                     android:textSize="10sp"
                     android:textColor="#4299E1"
                     android:textStyle="italic"/>
@@ -121,18 +121,28 @@
             android:scrollbarSize="8dp"
             android:scrollbarStyle="outsideOverlay">
             
-            <TextView
-                android:id="@+id/responseTextView"
+            <LinearLayout
+                android:id="@+id/conversationContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="🤖 Welcome to Sasya Chikitsa! I'm your AI plant health assistant. Each app session starts fresh - upload a photo or ask me about plant care."
+                android:orientation="vertical"
                 android:padding="16dp"
-                android:textSize="16sp"
-                android:lineSpacingExtra="6dp"
-                android:textColor="#2D3748"
                 android:background="@drawable/chat_background"
-                android:layout_marginBottom="16dp"
-                android:minHeight="500dp" />
+                android:minHeight="500dp">
+                
+                <TextView
+                    android:id="@+id/responseTextView"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🤖 Welcome to Sasya Chikitsa! I'm your AI plant health assistant. Each app session starts fresh - upload a photo or ask me about plant care."
+                    android:padding="16dp"
+                    android:textSize="16sp"
+                    android:lineSpacingExtra="6dp"
+                    android:textColor="#2D3748"
+                    android:background="@drawable/chat_background"
+                    android:layout_marginBottom="16dp" />
+                    
+            </LinearLayout>
                     
         </ScrollView>
     </androidx.cardview.widget.CardView>
