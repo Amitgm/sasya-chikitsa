@@ -31,13 +31,15 @@ This repository contains notebooks for creating embeddings, building a vector da
 - Does **not** require a Groq API key.  
 - Simply run the notebook to start the RAG pipeline.  
 
-### 4. Running with Ollama
+### 4. Running with Ollama on your system
 
-- There are two files that have been created for running ollama with RAG : rag_with_ollama_fastapi.py and rag_with_ollama.py
-- There are two files that are required which supports the running of ollama RAG program files: The requirements.txt and      chroma_capstone_db_new.
-- Create a folder in your local desktop and place the four files under your folder. 
-- Create a virtual environment using a python version 3.10 or greater.
-- once virtual environment is created, cd into your virtual environment file/scripts and activate your virtual environment
+- Two files have been created for running ollama with RAG:
+    - The first is a fast-api app: rag_with_ollama_fastapi.py
+    - The second is a normal Python file to be integrated into the agent flow: rag_with_ollama.py
+- Two files are required, which support the running of the ollama RAG program files: The requirements.txt(Requirements file) and chroma_capstone_db_new (Vector database)
+- Create a folder on your local desktop and place the four files under your folder. 
+- Create a virtual environment using a Python version 3.10 or greater.
+- Once virtual environment is created, cd into your virtual_environment_file/scripts and activate your virtual environment
 - After activation, cd.. back into your local parent folder and run the command in your command prompt pip install -r requirements.txt
 - Once all the packages are installed, you can now run both rag_with_ollama.py, rag_with_ollama_fastapi.py
 

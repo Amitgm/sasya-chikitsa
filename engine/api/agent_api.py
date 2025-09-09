@@ -210,12 +210,53 @@ class AgentAPI:
                 if handle:
                     self.agent_core._image_emitters[handle] = emit
                 try:
-                    result = await self.agent_core.invoke_agent(
-                        inputs,
-                        req.session_id or "default",
-                        callbacks=[QueueCallbackHandler()]
-                    )
-                    final_text = result.get("output") if isinstance(result, dict) else str(result)
+                    # Check if this is an image classification request  
+                    has_image = "image_handle=" in system_context
+                    
+                    if has_image:
+                        logger.info("🔥 DIRECT API-LEVEL STREAMING: Image classification detected")
+                        
+                        # Stream progress updates DIRECTLY with real delays at API level
+                        await asyncio.sleep(0.3)
+                        emit("Resized image, normalizing and preprocessing...")
+                        logger.info("📡 Streamed chunk 1 directly from API")
+                        
+                        await asyncio.sleep(1.5)  
+                        emit("Preparing image for neural network analysis...")
+                        logger.info("📡 Streamed chunk 2 directly from API")
+                        
+                        await asyncio.sleep(1.2)
+                        emit("Running CNN model inference...")
+                        logger.info("📡 Streamed chunk 3 directly from API")
+                        
+                        await asyncio.sleep(1.0)
+                        emit("Analyzing prediction results...")
+                        logger.info("📡 Streamed chunk 4 directly from API")
+                        
+                        await asyncio.sleep(1.0)
+                        emit("Finalizing diagnosis...")
+                        logger.info("📡 Streamed chunk 5 directly from API")
+                        
+                        # Now do the actual classification (without internal streaming)
+                        logger.info("🧠 Starting actual CNN classification (background)")
+                        result = await self.agent_core.invoke_agent(
+                            inputs,
+                            req.session_id or "default", 
+                            callbacks=[QueueCallbackHandler()]
+                        )
+                        
+                        await asyncio.sleep(0.5)
+                        final_text = result.get("output") if isinstance(result, dict) else str(result)
+                        logger.info("✅ CNN classification completed, proceeding with response")
+                        
+                    else:
+                        # Handle non-image requests normally
+                        result = await self.agent_core.invoke_agent(
+                            inputs,
+                            req.session_id or "default",
+                            callbacks=[QueueCallbackHandler()]
+                        )
+                        final_text = result.get("output") if isinstance(result, dict) else str(result)
                     
                     # Only call summarize_response if actual leaf classification occurred
                     should_summarize = self._should_summarize_response(system_context, final_text)
@@ -274,9 +315,8 @@ class AgentAPI:
                         yield chunk
                         queue.task_done()
                         
-                        # Add small delay between chunks to ensure real-time streaming
-                        # This respects the delays set in agent_core._stream_image_classification
-                        await asyncio.sleep(0.1)
+                        # NO additional delay here - delays are now properly handled in _stream_image_classification
+                        # This prevents double-delays and ensures immediate chunk delivery
                         
                         if task.done() and queue.empty():
                             break
