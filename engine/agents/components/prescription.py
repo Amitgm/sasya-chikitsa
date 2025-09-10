@@ -55,14 +55,20 @@ class PrescriptionComponent(BaseComponent):
         """
         logger.info(f"🔬 Starting prescription generation for session {session_id}")
         
-        user_profile = session_data.get('user_profile', {})
-        diagnosis_results = session_data.get('diagnosis_results', {})
+        # ENHANCED DEBUG LOGGING
+        logger.info(f"🔍 Session data keys: {list(session_data.keys())}")
+        logger.info(f"🔍 Full session data: {session_data}")
         
-        logger.debug(f"User profile: {user_profile}")
-        logger.debug(f"Diagnosis results: {diagnosis_results}")
+        user_profile = session_data.get('user_profile', {})
+        # FIX: Classification component stores results as 'classification_results', not 'diagnosis_results'
+        diagnosis_results = session_data.get('classification_results', {})
+        
+        logger.info(f"👤 User profile: {user_profile}")
+        logger.info(f"🏥 Diagnosis results: {diagnosis_results}")
         
         if not diagnosis_results.get('disease_name'):
-            logger.warning("No disease classification available for prescription")
+            logger.error(f"❌ No disease classification available - classification_results: {diagnosis_results}")
+            logger.error(f"❌ Available session data keys: {list(session_data.keys())}")
             return self.create_error_result(
                 "No disease classification available for prescription generation",
                 "I need a disease diagnosis first. Please upload an image for classification."
@@ -75,9 +81,14 @@ class PrescriptionComponent(BaseComponent):
                 diagnosis_results, user_profile, user_input
             )
             
+            logger.info(f"✅ Generated prescription: {prescription}")
+            
             # Format prescription for user
             logger.info("📝 Formatting prescription response...")
             response = self._format_prescription_response(prescription, user_profile)
+            
+            logger.info(f"📄 Formatted response length: {len(response)} chars")
+            logger.info(f"📄 Response preview: {response[:200]}...")
             
             session_update = {
                 'prescription': prescription,
@@ -94,7 +105,9 @@ class PrescriptionComponent(BaseComponent):
             )
             
         except Exception as e:
-            logger.error(f"❌ Error in prescription generation: {e}")
+            logger.error(f"❌ Error in prescription generation: {e}", exc_info=True)
+            logger.error(f"❌ Exception type: {type(e).__name__}")
+            logger.error(f"❌ Session data at error: {session_data}")
             return self.create_error_result(
                 f"Failed to generate prescription: {str(e)}",
                 "I encountered an issue generating your prescription. Please try again or contact support."
@@ -113,7 +126,12 @@ class PrescriptionComponent(BaseComponent):
         location = user_profile.get('location', '')
         season = user_profile.get('season', '')
         
-        logger.debug(f"🔍 Generating prescription for: disease={disease_name}, crop={crop_type}, location={location}, season={season}")
+        logger.info(f"🔍 Generating prescription for: disease='{disease_name}', crop='{crop_type}', location='{location}', season='{season}'")
+        
+        # Check if we have valid data
+        if not disease_name:
+            logger.error(f"❌ Missing disease name from classification_results: {classification_results}")
+            return self._get_fallback_prescription("unknown_disease", crop_type)
         
         # Build comprehensive RAG query with contextual information
         rag_query = f"Treatment prescription for {disease_name}"
@@ -132,16 +150,18 @@ class PrescriptionComponent(BaseComponent):
         try:
             # Determine plant type for collection selection
             plant_collection = self._map_crop_to_collection(crop_type)
-            logger.debug(f"🎯 Using plant collection: {plant_collection}")
+            logger.info(f"🎯 Using plant collection: {plant_collection}")
             
             # Query enhanced RAG system with plant-specific collection
+            logger.info(f"📞 Calling RAG system with query: '{rag_query}' and collection: {plant_collection}")
             rag_response = await asyncio.to_thread(
                 self.rag_system.run_query, 
                 rag_query, 
                 plant_collection
             )
             
-            logger.debug(f"✅ RAG response received: {len(rag_response)} characters")
+            logger.info(f"✅ RAG response received: {len(rag_response)} characters")
+            logger.info(f"📄 RAG response preview: {rag_response[:300]}...")
             
             # Structure the response
             return {
@@ -157,9 +177,11 @@ class PrescriptionComponent(BaseComponent):
             }
             
         except Exception as e:
-            logger.error(f"Enhanced RAG prescription generation failed: {e}")
+            logger.error(f"❌ Enhanced RAG prescription generation failed: {e}", exc_info=True)
             logger.info("🔄 Attempting fallback prescription generation...")
-            return self._get_fallback_prescription(disease_name, crop_type)
+            fallback = self._get_fallback_prescription(disease_name, crop_type)
+            logger.info(f"🔄 Fallback prescription generated: {fallback}")
+            return fallback
 
     def _map_crop_to_collection(self, crop_type: str) -> Optional[str]:
         """

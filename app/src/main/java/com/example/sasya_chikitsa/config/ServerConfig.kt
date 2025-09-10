@@ -7,18 +7,18 @@ import android.content.SharedPreferences
  * Server configuration management for the Sasya Chikitsa app.
  * 
  * Common scenarios:
- * - Android Emulator: Use 10.0.2.2:8080 (maps to host's localhost:8080)
- * - Physical Device on same network: Use 192.168.x.x:8080 (find with `ipconfig` or `ifconfig`)
+ * - Android Emulator: Use 10.0.2.2:8001 (maps to host's localhost:8001 - Planning Agent)
+ * - Physical Device on same network: Use 192.168.x.x:8001 (find with `ipconfig` or `ifconfig`)
  * - Custom deployment: Use your server's public IP or domain
  */
 object ServerConfig {
     private const val PREF_NAME = "sasya_chikitsa_config"
     private const val SERVER_URL_KEY = "server_url"
     
-    // Default URLs for common scenarios
-    const val DEFAULT_EMULATOR_URL = "http://10.0.2.2:8080/"
-    const val DEFAULT_LOCALHOST_URL = "http://localhost:8080/"
-    const val DEFAULT_LOCAL_IP_URL = "http://192.168.1.100:8080/"
+    // Default URLs for common scenarios (updated for Planning Agent on port 8001)
+    const val DEFAULT_EMULATOR_URL = "http://10.0.2.2:8001/"
+    const val DEFAULT_LOCALHOST_URL = "http://localhost:8001/"
+    const val DEFAULT_LOCAL_IP_URL = "http://192.168.1.100:8001/"
     const val DEFAULT_STAGING_URL = "https://your-staging-server.com/api/"
     const val DEFAULT_PRODUCTION_URL = "http://engine-sasya-chikitsa.apps.cluster-mx6z7.mx6z7.sandbox5315.opentlc.com/"
     

@@ -502,7 +502,7 @@ class ClassificationComponent(BaseComponent):
         # Add attention visualization note
         if result.get('has_attention_visualization'):
             response += f"\n🎯 **AI Focus Areas:** I've generated a visualization showing which parts of the leaf I focused on during analysis.\n"
-            response += result.get('attention_overlay')
+            # response += result.get('attention_overlay')
             response += "\n"
         
         # Add confidence-based guidance
