@@ -228,12 +228,25 @@ class CNNWithAttentionClassifier(Layer):
             return
 
         try:
-            image_decoded = base64.b64decode(image_bytes)
+            # Clean the base64 string - remove whitespace and potential prefixes
+            clean_image_bytes = image_bytes.strip()
+            
+            # Remove data URL prefix if present (data:image/jpeg;base64,)
+            if clean_image_bytes.startswith('data:'):
+                clean_image_bytes = clean_image_bytes.split(',', 1)[1]
+            
+            # Remove any whitespace/newlines
+            clean_image_bytes = ''.join(clean_image_bytes.split())
+            
+            # Decode base64
+            image_decoded = base64.b64decode(clean_image_bytes)
             nparr = np.frombuffer(image_decoded, np.uint8)
             image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         except Exception as e:
             yield f"Error: Could not decode base64 image ({str(e)})\n"
+            yield f"Debug: Base64 string length: {len(image_bytes) if image_bytes else 0}\n"
+            yield f"Debug: First 100 chars: {image_bytes[:100] if image_bytes else 'None'}\n"
             return
         
         if image is None:
