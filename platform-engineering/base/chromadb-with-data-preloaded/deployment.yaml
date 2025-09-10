@@ -30,7 +30,7 @@ spec:
         deployment: chromadb-with-data-amd64
     spec:
       containers:
-      - image: image-registry.openshift-image-registry.svc:5000/sasya-chikitsa/chromadb-with-data-amd64@sha256:cebd005e6b32c2cb0fa57f626ab3e5b2138fc3c6d080c831e65c953bb71038fd
+      - image: quay.io/rajivranjan/chromadb-with-data-amd64:v1
         imagePullPolicy: IfNotPresent
         name: chromadb-with-data-amd64
         securityContext:
