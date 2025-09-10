@@ -368,6 +368,11 @@ class PlanningAgent:
         Returns:
             Result from component execution
         """
+        # Handle INITIAL state by transitioning to appropriate first state
+        if self._state_equals(current_state, WorkflowState.INITIAL):
+            logger.info("🔄 INITIAL state detected - transitioning to INTENT_CAPTURE")
+            current_state = WorkflowState.INTENT_CAPTURE
+        
         if not self._state_in_components(current_state):
             raise ValueError(f"No component handler for state: {current_state}")
         
