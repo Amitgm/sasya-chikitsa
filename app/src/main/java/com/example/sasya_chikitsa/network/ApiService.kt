@@ -12,7 +12,7 @@ import retrofit2.http.Streaming // Important for streaming
 interface ApiService {
 
     @Streaming // Indicate that this is a streaming response
-    @POST("chat-stream")
+    @POST("planning/chat-stream")
     suspend fun chatStream(
         @Body requestBody: ChatRequestData,
         @Query("format") format: String? = null, // For the optional query parameter

@@ -94,6 +94,7 @@ class SessionManager:
         return {
             'user_profile': session.user_profile,
             'diagnosis_results': session.diagnosis_results,
+            'classification_results': session.diagnosis_results,  # Provide both keys for compatibility
             'prescriptions': session.prescriptions,
             'vendor_choices': session.vendor_choices,
             'context': session.context,
@@ -146,8 +147,12 @@ class SessionManager:
             
             elif state_str == 'classification':
                 classification_results = component_data.get('classification_results', {})
-                session.diagnosis_results.update(classification_results)
-                logger.debug(f"   ✅ Updated diagnosis_results: {list(classification_results.keys())}")
+                if classification_results:
+                    session.diagnosis_results.update(classification_results)
+                    logger.debug(f"   ✅ Updated diagnosis_results: {list(classification_results.keys())}")
+                    logger.debug(f"   ✅ diagnosis_results now contains: {session.diagnosis_results}")
+                else:
+                    logger.warning(f"   ⚠️  No classification_results found in component_data: {list(component_data.keys())}")
             
             elif state_str == 'prescription':
                 prescription = component_data.get('prescription')
