@@ -234,3 +234,7 @@ filtered_data.csv
 # ChromaDB database
 chroma_capstone_db_new.zip
 chroma_capstone_db_new
+chromadb-with-bge-large-en-v1.5-embedding
+
+# Embedding local models
+bge-large-en-v1.5-local
