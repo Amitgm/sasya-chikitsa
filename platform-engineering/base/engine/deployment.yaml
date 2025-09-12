@@ -26,6 +26,8 @@ spec:
       containers:
         - name: engine
           image: 'quay.io/rajivranjan/engine:v4'
+          securityContext:
+            runAsUser: 0
           ports:
             - containerPort: 8080
               protocol: TCP
@@ -49,7 +51,8 @@ spec:
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst
-      securityContext: {}
+      securityContext:
+        runAsUser: 0
       schedulerName: default-scheduler
   strategy:
     type: RollingUpdate
