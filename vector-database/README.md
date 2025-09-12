@@ -21,9 +21,13 @@ We are using Chromadb as vector database. There are two different flavours of it
   * for Docker 
   '''cmd
   docker pull amit1994/chromadb_small
-  
-  docker run -p 8000:8000 amit1994/chromadb_small
+  '''
 
+  '''cmd
+  docker run -p 8000:8000 amit1994/chromadb_small
+  '''
+
+  '''cmd
   python test_chromadb.py
   '''
 
