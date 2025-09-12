@@ -25,13 +25,17 @@ spec:
     spec:
       containers:
         - name: engine
-          image: 'quay.io/rajivranjan/engine:v3'
+          image: 'quay.io/rajivranjan/engine:v4'
           ports:
             - containerPort: 8080
               protocol: TCP
           env:
             - name: OLLAMA_HOST
               value: 'http://llama318b.sasya-chikitsa.svc.cluster.local:11434'
+            - name: HUB_MODEL_ID
+              value: 'sentence-transformers/multi-qa-MiniLM-L6-cos-v1'
+            - name: OLLAMA_MODEL
+              value: 'llama3.1:8b'
           resources: {}
             # requests:
             #     memory: "16Gi"

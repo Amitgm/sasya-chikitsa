@@ -7,7 +7,7 @@ set -e  # Exit on any error
 
 # Default values
 HOST="0.0.0.0"
-PORT="8001"
+PORT="8080"
 RELOAD=""
 DEBUG=""
 ENV_FILE=""
@@ -158,6 +158,8 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 echo "✅ Python version: $(python3 --version)"
+
+echo "Python prefix: $(python3 -c 'import sys; print(sys.prefix)')"
 
 # Check if we're in a virtual environment
 if [[ "$VIRTUAL_ENV" != "" ]]; then

@@ -9,6 +9,7 @@ Enhanced with multi-plant ChromaDB collections for optimized performance.
 
 import asyncio
 import logging
+import os
 from typing import Dict, Any, Optional
 
 from .base_component import BaseComponent, ComponentResult
@@ -36,7 +37,8 @@ class PrescriptionComponent(BaseComponent):
         self.rag_system = ollama_rag(
             llm_name="llama3.1:8b",
             temperature=0.1,
-            embedding_model="intfloat/multilingual-e5-large-instruct",
+            # embedding_model="intfloat/multilingual-e5-large-instruct", 
+            embedding_model=os.getenv("HUB_MODEL_ID","sentence-transformers/multi-qa-MiniLM-L6-cos-v1"),
             # Initialize common plant collections
             collections_to_init=['Tomato', 'Potato', 'Rice', 'Wheat', 'Corn', 'Cotton']
         )
@@ -162,7 +164,8 @@ class PrescriptionComponent(BaseComponent):
             
             logger.info(f"✅ RAG response received: {len(rag_response)} characters")
             logger.info(f"📄 RAG response preview: {rag_response[:300]}...")
-            
+            logger.info(f"📄 RAG response preview: {rag_response}")
+
             # Structure the response
             return {
                 'disease': disease_name,
