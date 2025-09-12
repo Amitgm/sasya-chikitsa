@@ -1,0 +1,198 @@
+{"0": {
+    "doc": "Deployment of app and api",
+    "title": "Deployment of app and api",
+    "content": " ",
+    "url": "/decisions/0001-deployment-app-and-api.html",
+    
+    "relUrl": "/decisions/0001-deployment-app-and-api.html"
+  },"1": {
+    "doc": "Deployment of app and api",
+    "title": "Context and Problem Statement",
+    "content": "We want to record architectural decisions made in this project independent whether decisions concern the architecture (“architectural decision record”), the code, or other fields. Which format and structure should these records follow? . ",
+    "url": "/decisions/0001-deployment-app-and-api.html#context-and-problem-statement",
+    
+    "relUrl": "/decisions/0001-deployment-app-and-api.html#context-and-problem-statement"
+  },"2": {
+    "doc": "Deployment of app and api",
+    "title": "Considered Options",
+    "content": ". | MADR 4.0.0 – The Markdown Architectural Decision Records | Michael Nygard’s template – The first incarnation of the term “ADR” | Sustainable Architectural Decisions – The Y-Statements | Other templates listed at https://github.com/joelparkerhenderson/architecture_decision_record | Formless – No conventions for file format and structure | . ",
+    "url": "/decisions/0001-deployment-app-and-api.html#considered-options",
+    
+    "relUrl": "/decisions/0001-deployment-app-and-api.html#considered-options"
+  },"3": {
+    "doc": "Deployment of app and api",
+    "title": "Decision Outcome",
+    "content": "Chosen option: “MADR 4.0.0”, because . | Implicit assumptions should be made explicit. Design documentation is important to enable people understanding the decisions later on. See also “A rational design process: How and why to fake it”. | MADR allows for structured capturing of any decision. | The MADR format is lean and fits our development style. | The MADR structure is comprehensible and facilitates usage &amp; maintenance. | The MADR project is vivid. | . ",
+    "url": "/decisions/0001-deployment-app-and-api.html#decision-outcome",
+    
+    "relUrl": "/decisions/0001-deployment-app-and-api.html#decision-outcome"
+  },"4": {
+    "doc": "Hosting App",
+    "title": "Hosting App",
+    "content": " ",
+    "url": "/decisions/0002-hosting-fastAPI.html",
+    
+    "relUrl": "/decisions/0002-hosting-fastAPI.html"
+  },"5": {
+    "doc": "Hosting App",
+    "title": "Context and Problem Statement",
+    "content": " ",
+    "url": "/decisions/0002-hosting-fastAPI.html#context-and-problem-statement",
+    
+    "relUrl": "/decisions/0002-hosting-fastAPI.html#context-and-problem-statement"
+  },"6": {
+    "doc": "Hosting App",
+    "title": "Decision Drivers",
+    "content": ". | . ",
+    "url": "/decisions/0002-hosting-fastAPI.html#decision-drivers",
+    
+    "relUrl": "/decisions/0002-hosting-fastAPI.html#decision-drivers"
+  },"7": {
+    "doc": "Hosting App",
+    "title": "Considered Options",
+    "content": ". | . ",
+    "url": "/decisions/0002-hosting-fastAPI.html#considered-options",
+    
+    "relUrl": "/decisions/0002-hosting-fastAPI.html#considered-options"
+  },"8": {
+    "doc": "Hosting App",
+    "title": "Decision Outcome",
+    "content": "Chosen option: “”, because . Consequences . | Good, because | Bad, because | . Confirmation . ",
+    "url": "/decisions/0002-hosting-fastAPI.html#decision-outcome",
+    
+    "relUrl": "/decisions/0002-hosting-fastAPI.html#decision-outcome"
+  },"9": {
+    "doc": "Hosting App",
+    "title": "Pros and Cons of the Options",
+    "content": ". | Good, because | Neutral, because | Bad, because | . ",
+    "url": "/decisions/0002-hosting-fastAPI.html#pros-and-cons-of-the-options",
+    
+    "relUrl": "/decisions/0002-hosting-fastAPI.html#pros-and-cons-of-the-options"
+  },"10": {
+    "doc": "Hosting App",
+    "title": "More Information",
+    "content": " ",
+    "url": "/decisions/0002-hosting-fastAPI.html#more-information",
+    
+    "relUrl": "/decisions/0002-hosting-fastAPI.html#more-information"
+  },"11": {
+    "doc": "Hosting Neural Network Models",
+    "title": "Hosting Neural Network Models",
+    "content": " ",
+    "url": "/decisions/0003-hosting-cnn-models.html",
+    
+    "relUrl": "/decisions/0003-hosting-cnn-models.html"
+  },"12": {
+    "doc": "Hosting Neural Network Models",
+    "title": "Context and Problem Statement",
+    "content": " ",
+    "url": "/decisions/0003-hosting-cnn-models.html#context-and-problem-statement",
+    
+    "relUrl": "/decisions/0003-hosting-cnn-models.html#context-and-problem-statement"
+  },"13": {
+    "doc": "Hosting Neural Network Models",
+    "title": "Decision Drivers",
+    "content": ". | . ",
+    "url": "/decisions/0003-hosting-cnn-models.html#decision-drivers",
+    
+    "relUrl": "/decisions/0003-hosting-cnn-models.html#decision-drivers"
+  },"14": {
+    "doc": "Hosting Neural Network Models",
+    "title": "Considered Options",
+    "content": ". | . ",
+    "url": "/decisions/0003-hosting-cnn-models.html#considered-options",
+    
+    "relUrl": "/decisions/0003-hosting-cnn-models.html#considered-options"
+  },"15": {
+    "doc": "Hosting Neural Network Models",
+    "title": "Decision Outcome",
+    "content": "Chosen option: “”, because . Consequences . | Good, because | Bad, because | . Confirmation . ",
+    "url": "/decisions/0003-hosting-cnn-models.html#decision-outcome",
+    
+    "relUrl": "/decisions/0003-hosting-cnn-models.html#decision-outcome"
+  },"16": {
+    "doc": "Hosting Neural Network Models",
+    "title": "Pros and Cons of the Options",
+    "content": ". | Good, because | Neutral, because | Bad, because | . ",
+    "url": "/decisions/0003-hosting-cnn-models.html#pros-and-cons-of-the-options",
+    
+    "relUrl": "/decisions/0003-hosting-cnn-models.html#pros-and-cons-of-the-options"
+  },"17": {
+    "doc": "Hosting Neural Network Models",
+    "title": "More Information",
+    "content": " ",
+    "url": "/decisions/0003-hosting-cnn-models.html#more-information",
+    
+    "relUrl": "/decisions/0003-hosting-cnn-models.html#more-information"
+  },"18": {
+    "doc": "",
+    "title": "",
+    "content": " ",
+    "url": "/decisions/adr-template-bare.html",
+    
+    "relUrl": "/decisions/adr-template-bare.html"
+  },"19": {
+    "doc": "",
+    "title": "Context and Problem Statement",
+    "content": " ",
+    "url": "/decisions/adr-template-bare.html#context-and-problem-statement",
+    
+    "relUrl": "/decisions/adr-template-bare.html#context-and-problem-statement"
+  },"20": {
+    "doc": "",
+    "title": "Decision Drivers",
+    "content": ". | . ",
+    "url": "/decisions/adr-template-bare.html#decision-drivers",
+    
+    "relUrl": "/decisions/adr-template-bare.html#decision-drivers"
+  },"21": {
+    "doc": "",
+    "title": "Considered Options",
+    "content": ". | . ",
+    "url": "/decisions/adr-template-bare.html#considered-options",
+    
+    "relUrl": "/decisions/adr-template-bare.html#considered-options"
+  },"22": {
+    "doc": "",
+    "title": "Decision Outcome",
+    "content": "Chosen option: “”, because . Consequences . | Good, because | Bad, because | . Confirmation . ",
+    "url": "/decisions/adr-template-bare.html#decision-outcome",
+    
+    "relUrl": "/decisions/adr-template-bare.html#decision-outcome"
+  },"23": {
+    "doc": "",
+    "title": "Pros and Cons of the Options",
+    "content": ". | Good, because | Neutral, because | Bad, because | . ",
+    "url": "/decisions/adr-template-bare.html#pros-and-cons-of-the-options",
+    
+    "relUrl": "/decisions/adr-template-bare.html#pros-and-cons-of-the-options"
+  },"24": {
+    "doc": "",
+    "title": "More Information",
+    "content": " ",
+    "url": "/decisions/adr-template-bare.html#more-information",
+    
+    "relUrl": "/decisions/adr-template-bare.html#more-information"
+  },"25": {
+    "doc": "Decisions",
+    "title": "Decisions",
+    "content": "Below are the architecture design decision records: . ",
+    "url": "/decisions/",
+    
+    "relUrl": "/decisions/"
+  },"26": {
+    "doc": "About Sasya Chikitsa",
+    "title": "Saysa Chikitsa",
+    "content": " ",
+    "url": "/#saysa-chikitsa",
+    
+    "relUrl": "/#saysa-chikitsa"
+  },"27": {
+    "doc": "About Sasya Chikitsa",
+    "title": "About Sasya Chikitsa",
+    "content": " ",
+    "url": "/",
+    
+    "relUrl": "/"
+  }
+}

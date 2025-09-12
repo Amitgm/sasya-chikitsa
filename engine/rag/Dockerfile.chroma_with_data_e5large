@@ -1,0 +1,27 @@
+# Use an official Python runtime as a parent image
+FROM python:3.12-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install chromadb. sentence-transformers is needed by the client to know the model,
+# but the server itself doesn't require it to serve the data.
+# We install it here to be safe and allow for potential server-side embedding in the future.
+# RUN pip install --no-cache-dir chromadb=="0.5.3" sentence-transformers=="3.0.1"
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip -r requirements.txt
+
+
+
+# Copy the ChromaDB data directory into the container.
+# This assumes your build context is the 'engine' directory.
+# The source path is relative to the build context.
+COPY ./chroma_capstone_db_new /app/chroma_data
+
+# Expose the port the ChromaDB server will run on
+EXPOSE 8000
+
+# The command to run when the container starts.
+# This starts the ChromaDB server, makes it accessible from outside the container,
+# and tells it where to find the database files.
+CMD ["chroma", "run", "--host", "0.0.0.0", "--port", "8000", "--path", "/app/chroma_data"]

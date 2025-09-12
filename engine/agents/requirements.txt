@@ -1,0 +1,105 @@
+# Planning Agent System Requirements
+
+# ========================================
+# Core FastAPI and ASGI server
+# ========================================
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+starlette>=0.47.0
+
+# ========================================
+# Data validation and serialization  
+# ========================================
+pydantic>=2.4.2
+python-multipart>=0.0.6  # For file uploads
+
+# ========================================
+# Machine Learning and AI Stack
+# ========================================
+# Core ML libraries
+# tensorflow>=2.13.0
+tensorflow==2.20.0
+keras==3.11.2
+numpy==2.2.6
+scipy==1.16.1
+scikit-learn==1.7.1
+tf-keras==2.20.1
+
+# Image processing
+# opencv-python>=4.8.0
+pillow>=10.0.0
+matplotlib>=3.7.0
+
+# ========================================
+# LangChain Ecosystem
+# ========================================
+# Core LangChain
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-community>=0.0.10
+
+# LangChain integrations
+langchain-ollama>=0.1.0
+langchain-openai>=0.0.5  # Optional, for OpenAI models
+langchain-chroma>=0.1.0
+
+# ========================================
+# Vector Database and Embeddings
+# ========================================
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+
+# Specific embedding models
+# Note: HuggingFaceEmbeddings uses sentence-transformers under the hood
+
+# ========================================
+# Data Processing
+# ========================================
+pandas>=2.0.0
+python-dateutil>=2.8.0
+
+# ========================================  
+# Environment and Configuration
+# ========================================
+python-dotenv>=1.0.0
+typing-extensions>=4.8.0
+
+# ========================================
+# HTTP and Networking
+# ========================================
+requests>=2.28.0
+httpx>=0.24.0  # Alternative HTTP client used by some LangChain components
+
+# ========================================
+# Async and Concurrency
+# ========================================
+# asyncio  # Built-in, no need to install
+aiofiles>=23.0.0  # For async file operations
+
+# ========================================
+# Logging and Monitoring
+# ========================================
+# logging  # Built-in
+rich>=13.0.0  # For beautiful console output (optional)
+
+# ========================================
+# Development and Testing Dependencies
+# ========================================
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.10.0
+
+# ========================================
+# Optional: Additional AI/ML libraries
+# ========================================
+# These might be needed depending on specific model requirements
+# transformers>=4.30.0  # For Hugging Face models
+# torch>=2.0.0  # PyTorch (alternative to TensorFlow)
+# tokenizers>=0.13.0  # Fast tokenization
+
+# ========================================
+# Production Dependencies
+# ========================================
+gunicorn>=21.0.0  # WSGI server for production deployment
+
+opencv-python-headless==4.11.0.86
