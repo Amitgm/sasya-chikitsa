@@ -1,0 +1,9 @@
+FROM llama3.1:8b
+
+# Keep the model in memory indefinitely
+PARAMETER keep_alive -1
+
+# Enable memory mapping for faster initial model loads
+PARAMETER use_mmap true
+
+# cache of request - response will help when mulitple farmers across has similar queries.
