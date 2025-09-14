@@ -81,8 +81,8 @@ class ollama_rag:
     def __init__(self, 
                  llm_name: str, 
                  temperature: float = 0.1, 
-                #  embedding_model: str = "intfloat/multilingual-e5-large-instruct",
-                 embedding_model: str = "multi-qa-MiniLM-L6-cos-v1",
+                 embedding_model: str = "intfloat/multilingual-e5-large-instruct",
+                 # embedding_model: str = "multi-qa-MiniLM-L6-cos-v1",
                  collections_to_init: Optional[List[str]] = None,
                 #  persist_directory: str = "./chroma_capstone_db_new"
                  persist_directory: str = "./chroma_capstone_db_new_small"):
@@ -225,14 +225,86 @@ class ollama_rag:
         # Fallback to default collection
         logger.debug(f"🔄 No specific plant type detected, using default: {self.default_collection}")
         return self.default_collection
-
-    def run_query(self, query_request: str, plant_type: Optional[str] = None) -> str:
+    
+    def _build_metadata_filter(self, season: Optional[str], location: Optional[str], disease: Optional[str]) -> Optional[Dict]:
         """
-        Run a query against the appropriate plant-specific collection.
+        Build metadata filter dictionary for ChromaDB search.
+        ChromaDB requires exactly one top-level operator, so multiple conditions must be wrapped in $and.
+        
+        Args:
+            season: Season filter (Summer, Winter, Kharif, Rabi, etc.)
+            location: Location filter (State/District name)
+            disease: Disease name filter
+            
+        Returns:
+            Metadata filter dictionary or None if no filters
+        """
+        conditions = []
+        
+        if season:
+            # Handle common season variations
+            season_lower = season.lower()
+            if season_lower in ['summer', 'kharif', 'monsoon']:
+                season_variations = ['Summer', 'Kharif', 'KHARIF', 'summer', 'Monsoon']
+            elif season_lower in ['winter', 'rabi', 'cold']:
+                season_variations = ['Winter', 'Rabi', 'RABI', 'winter', 'Cold']
+            else:
+                season_variations = [season, season.capitalize(), season.upper()]
+            
+            conditions.append({"Season_English": {"$in": season_variations}})
+            logger.debug(f"🌱 Season filter: {season_variations}")
+        
+        if location:
+            # Create flexible location matching (try StateName first, most common)
+            location_variations = [
+                location, 
+                location.capitalize(), 
+                location.upper(),
+                location.title()
+            ]
+            # For simplicity, filter by StateName (can be extended later for DistrictName)
+            conditions.append({"StateName": {"$in": location_variations}})
+            logger.debug(f"📍 Location filter (StateName): {location_variations}")
+        
+        if disease:
+            # Handle disease name variations
+            disease_variations = [
+                disease,
+                disease.capitalize(), 
+                disease.upper(),
+                disease.title(),
+                disease.lower().replace('_', ' ').title(),  # Handle Black_rot -> Black Rot
+                disease.lower().replace(' ', '_')           # Handle Black Rot -> black_rot
+            ]
+            conditions.append({"Disease": {"$in": disease_variations}})
+            logger.debug(f"🦠 Disease filter: {disease_variations}")
+        
+        # Return None if no conditions
+        if not conditions:
+            return None
+        
+        # If only one condition, return it directly (no need for $and)
+        if len(conditions) == 1:
+            return conditions[0]
+        
+        # Multiple conditions: wrap in $and operator
+        return {"$and": conditions}
+
+    def run_query(self, 
+                  query_request: str, 
+                  plant_type: Optional[str] = None,
+                  season: Optional[str] = None,
+                  location: Optional[str] = None, 
+                  disease: Optional[str] = None) -> str:
+        """
+        Run a query against the appropriate plant-specific collection with metadata filtering.
         
         Args:
             query_request: The query to search for
             plant_type: Optional explicit plant type (overrides auto-detection)
+            season: Optional season filter (Summer, Winter, Kharif, Rabi, etc.)
+            location: Optional location filter (State/District name)
+            disease: Optional disease name filter
             
         Returns:
             Answer from the RAG system
@@ -245,32 +317,68 @@ class ollama_rag:
             else:
                 collection_name = self._detect_plant_type(query_request)
             
-            # Get the appropriate retriever
-            if collection_name not in self.retrievers:
+            # Get the appropriate ChromaDB instance (not retriever)
+            if collection_name not in self.chroma_databases:
                 logger.warning(f"⚠️  Collection {collection_name} not available, falling back to {self.default_collection}")
                 collection_name = self.default_collection
             
-            retriever = self.retrievers[collection_name]
+            chroma_db = self.chroma_databases[collection_name]
             logger.debug(f"🔍 Querying collection: {collection_name}")
             
-            # Execute the query
-            answer = retriever.invoke({"query": query_request})["result"]
-            logger.info(f"✅ Query completed successfully using collection: {collection_name}")
+            # Build metadata filter
+            metadata_filter = self._build_metadata_filter(season, location, disease)
+            if metadata_filter:
+                logger.info(f"🎯 Using metadata filters: {metadata_filter}")
+            
+            # Execute search with metadata filtering
+            if metadata_filter:
+                # Use ChromaDB directly with metadata filtering
+                docs = chroma_db.similarity_search(
+                    query_request, 
+                    k=6,
+                    filter=metadata_filter
+                )
+                if not docs:
+                    logger.warning("⚠️  No documents found with metadata filters, trying without filters...")
+                    docs = chroma_db.similarity_search(query_request, k=6)
+            else:
+                # Use standard search without metadata filtering
+                docs = chroma_db.similarity_search(query_request, k=6)
+            
+            if not docs:
+                logger.warning("⚠️  No relevant documents found in the database")
+                return "I couldn't find relevant information in the database. Please provide more specific details about the plant disease or treatment you're looking for."
+            
+            # Build context from retrieved documents
+            context = "\n\n".join([doc.page_content for doc in docs])
+            
+            # Generate answer using LLM with context
+            formatted_prompt = self.PROMPT.format(context=context, question=query_request)
+            answer = self.llm.invoke(formatted_prompt).content
+            
+            logger.info(f"✅ Query completed successfully using collection: {collection_name} with {len(docs)} documents")
             
             return answer
             
         except Exception as e:
             logger.error(f"❌ Error during query execution: {e}")
-            # Try fallback to default collection if not already using it
-            if collection_name != self.default_collection:
-                logger.info(f"🔄 Attempting fallback to default collection: {self.default_collection}")
-                try:
-                    retriever = self.retrievers[self.default_collection]
-                    answer = retriever.invoke({"query": query_request})["result"]
+            # Try fallback to default collection without metadata filtering
+            logger.info(f"🔄 Attempting fallback to default collection without metadata filters...")
+            try:
+                fallback_db = self.chroma_databases[self.default_collection]
+                docs = fallback_db.similarity_search(query_request, k=6)
+                
+                if docs:
+                    context = "\n\n".join([doc.page_content for doc in docs])
+                    formatted_prompt = self.PROMPT.format(context=context, question=query_request)
+                    answer = self.llm.invoke(formatted_prompt).content
                     logger.info("✅ Fallback query completed successfully")
                     return answer
-                except Exception as fallback_error:
-                    logger.error(f"❌ Fallback query also failed: {fallback_error}")
+                else:
+                    logger.error("❌ No documents found even in fallback")
+                    
+            except Exception as fallback_error:
+                logger.error(f"❌ Fallback query also failed: {fallback_error}")
             
             raise RuntimeError(f"RAG query failed: {e}")
 

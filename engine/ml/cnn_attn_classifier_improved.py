@@ -283,7 +283,7 @@ class CNNWithAttentionClassifier(Layer):
         time.sleep(1.0)
         
         # Generate attention visualization
-        yield from self.visualize_self_attention_overlay(image, TARGET_IMG_SIZE)
+        # yield from self.visualize_self_attention_overlay(image, TARGET_IMG_SIZE)
         
-        yield f"Diagnosis Complete! Health Status: {predicted_class_label} with confidence {prediction_probability:.2f}\n"
+        yield f"Diagnosis Complete! Health Status: {kissan_cc_class_label} with confidence {prediction_probability:.2f}\n"
         return
