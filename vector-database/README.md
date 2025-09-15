@@ -18,6 +18,19 @@ We are using Chromadb as vector database. There are two different flavours of it
   podman pull quay.io/rajivranjan/chromadb-with-data-amd64:v1
   ```
 
+  * for Docker 
+  ```bash
+  docker pull amit1994/chromadb_small
+  ```
+
+  ```bash
+  docker run -p 8000:8000 amit1994/chromadb_small
+  ```
+
+  ```bash
+  python test_chromadb.py
+  ```
+
 * test the connectivity and data collection
 
 ```bash

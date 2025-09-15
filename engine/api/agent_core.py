@@ -19,7 +19,6 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 
 from ml.cnn_attn_classifier_improved import CNNWithAttentionClassifier
 
-
 try:
     from langchain_openai import ChatOpenAI  # type: ignore
 except Exception:

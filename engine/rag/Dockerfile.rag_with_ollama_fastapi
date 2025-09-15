@@ -9,7 +9,9 @@ RUN pip3 install --no-cache-dir -r /app/requirements.txt
 
 COPY ./rag_with_ollama_fastapi.py /app/rag_with_ollama_fastapi.py
 
-COPY ./chroma_capstone_db_new /app/chroma_capstone_db_new
+# COPY ./chroma_capstone_db_new /app/chroma_capstone_db_new
+
+COPY ./chroma_capstone_db_new_small /app/chroma_capstone_db_new_small
 
 EXPOSE 5050
 

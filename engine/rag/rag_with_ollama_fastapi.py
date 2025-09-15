@@ -74,7 +74,7 @@ embedding = HuggingFaceEmbeddings( #model_name="intfloat/multilingual-e5-large-i
                                   )
 chroma_db = Chroma(
     # persist_directory="./chroma_capstone_db_new",
-    persist_directory= "./chroma_capstone_db_new_small"
+    persist_directory= "./chroma_capstone_db_new_small",
     embedding_function=embedding,
     collection_name="Tomato"  # Specify which collection to load
 )
