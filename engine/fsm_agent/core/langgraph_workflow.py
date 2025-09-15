@@ -190,12 +190,23 @@ class DynamicPlanningWorkflow:
                 "vendor_query": "vendor_query",
                 "show_vendors": "show_vendors",
                 "completed": "completed",
+                "session_end": "session_end",
                 "error": "error"
             }
         )
         
+        # Add conditional edges for completed node to handle session ending
+        workflow.add_conditional_edges(
+            "completed",
+            self._route_from_completed,
+            {
+                "session_end": "session_end",
+                "completed": END  # Stay completed if not ending session
+            }
+        )
+        
         # Terminal nodes
-        workflow.add_edge("completed", END)
+        workflow.add_edge("session_end", END)
         workflow.add_edge("error", END)
         
         return workflow
@@ -228,19 +239,18 @@ class DynamicPlanningWorkflow:
     # These remain the same as they handle the workflow logic
     
     async def _route_from_initial(self, state: WorkflowState) -> str:
-        """Route from initial node"""
+        """Route from initial node - FIXED to always go through followup first"""
         next_action = state.get("next_action", "error")
         
         if next_action == "classify":
             return "classifying"
-        elif next_action == "followup":
-            return "followup"  # Route continuing conversations to followup node
-        elif next_action == "request_image":
-            return "followup"  # Stay in followup to wait for image
         elif next_action == "error":
             return "error"
         else:
-            return "completed"
+            # FIXED: All other actions (general_help, completed, request_image, followup) should go to followup first
+            # This ensures proper workflow flow: initial → followup → completed
+            logger.info(f"🔄 Routing from initial to followup for next_action: {next_action}")
+            return "followup"
     
     async def _route_from_classifying(self, state: WorkflowState) -> str:
         """Route from classifying node"""
@@ -273,6 +283,8 @@ class DynamicPlanningWorkflow:
             return "completed"
         elif next_action == "retry":
             return "retry"
+        elif next_action == "classify":
+            return "classifying"
         elif next_action == "error":
             return "error"
         else:
@@ -317,24 +329,48 @@ class DynamicPlanningWorkflow:
             return "completed"
     
     async def _route_from_followup(self, state: WorkflowState) -> str:
-        """Route from followup node"""
-        next_action = state.get("next_action", "complete")
+        """Route from followup node - FIXED to end workflow but keep session active"""
+        next_action = state.get("next_action", "completed")
         
+        # Only specific actions should start new workflow nodes
         routing_map = {
             "restart": "initial",
-            "classify": "classifying",
+            "classify": "classifying", 
             "prescribe": "prescribing",
             "show_vendors": "show_vendors",
-            "complete": "completed",
-            "error": "error",
-            "request_image": "completed",  # End and wait for user to provide image
-            "classify_first": "completed",  # End and wait for user to provide image
-            "prescribe_first": "completed",  # End and wait for user to provide image
-            "general_help": "completed",  # End and wait for user input
-            "await_user_input": "completed"  # End workflow after direct response, await next user message
+            "session_end": "session_end",  # Only explicit user goodbye ends session
+            "error": "error"
         }
         
-        return routing_map.get(next_action, "completed")
+        # Check if it's a mapped action that starts a new workflow node
+        if next_action in routing_map:
+            target_node = routing_map[next_action]
+            logger.info(f"🔄 Routing from followup: {next_action} → {target_node}")
+            return target_node
+        else:
+            # FIXED: All other actions end current workflow but keep session active
+            # Session continuity is managed at session manager level, not workflow level
+            logger.info(f"🔄 Ending workflow, session stays active: {next_action} → completed")
+            return "completed"
+    
+    async def _route_from_completed(self, state: WorkflowState) -> str:
+        """Route from completed node"""
+        # Check if user wants to end the session
+        user_message = state.get("user_message", "").lower()
+        
+        # Keywords that indicate session ending intent
+        session_end_keywords = [
+            "bye", "goodbye", "farewell", "thanks for everything", "thank you for everything", 
+            "i'm done", "finished", "all done", "exit", "quit", 
+            "end session", "stop", "that's all", "no more", "see you later"
+        ]
+        
+        # If user expressed goodbye intent, end the session
+        if any(keyword in user_message for keyword in session_end_keywords):
+            return "session_end"
+        
+        # Otherwise, stay in completed state (workflow ends but session remains active)
+        return "completed"
     
     # ==================== PUBLIC METHODS ====================
     

@@ -158,15 +158,15 @@ def test_followup_routing():
             "classify_first": "completed", 
             "prescribe_first": "completed",
             "general_help": "completed",
-            "await_user_input": "followup"  # NEW: Stay in followup mode after direct response
+            "await_user_input": "completed"  # Stay in followup mode after direct response
         }
         return routing_map.get(next_action, "completed")
     
     test_cases = [
         {
             "next_action": "await_user_input",
-            "expected_route": "followup",
-            "description": "Direct response should stay in followup"
+            "expected_route": "completed",
+            "description": "Direct response should end workflow gracefully"
         },
         {
             "next_action": "complete", 
@@ -214,10 +214,10 @@ def main():
         logger.info("Expected behavior for weather tips/dosage questions:")
         logger.info("1. User asks: 'Give me weather tips' or 'Yes give me dosage'")
         logger.info("2. Followup node generates response and stores in assistant_response")
-        logger.info("3. Sets next_action = 'await_user_input' (stays in followup)")
+        logger.info("3. Sets next_action = 'await_user_input' (ends workflow)")
         logger.info("4. Workflow streams assistant_response immediately")
         logger.info("5. User sees the weather tips/dosage info response")
-        logger.info("6. Conversation continues (doesn't end)")
+        logger.info("6. Conversation continues with session persistence")
         
         return True
     else:

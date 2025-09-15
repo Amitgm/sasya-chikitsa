@@ -38,10 +38,18 @@ class PrescribingNode(BaseNode):
         self.update_node_state(state)
         
         try:
-            if not state.get("classification_results"):
-                set_error(state, "No classification results available for prescription")
-                state["next_action"] = "error"
+            # Check for classification results in current state or session history
+            classification_results = self._get_classification_from_session(state)
+            
+            if not classification_results:
+                logger.info("⚠️ No classification results found in session - requesting classification")
+                self._request_classification_for_prescription(state)
                 return state
+            
+            # Update state with classification results if found in session history
+            if not state.get("classification_results"):
+                state["classification_results"] = classification_results
+                logger.info(f"📋 Retrieved classification from session history: {classification_results.get('disease', 'Unknown')}")
             
             add_message_to_state(
                 state,
@@ -96,9 +104,9 @@ class PrescribingNode(BaseNode):
         if user_intent.get("wants_vendors", False):
             state["next_action"] = "vendor_query"
         else:
-            # User only wanted classification and prescription
-            state["next_action"] = "complete"
-            state["is_complete"] = True
+            # Prescription complete - route back to followup for user's next choice
+            state["next_action"] = "followup"
+            state["requires_user_input"] = True
             
             completion_msg = "✅ **Treatment Plan Complete!** If you'd like to find vendors to purchase these treatments, just let me know!"
             
@@ -184,3 +192,146 @@ class PrescribingNode(BaseNode):
 💚 **Your plant will get better with proper care!**"""
         
         return response
+    
+    def _get_classification_from_session(self, state: WorkflowState) -> Dict[str, Any]:
+        """
+        Get classification results from current state or session history
+        
+        Args:
+            state: Current workflow state
+            
+        Returns:
+            Classification results if found, None otherwise
+        """
+        # First check current state
+        classification_results = state.get("classification_results")
+        if classification_results:
+            logger.info("📋 Found classification results in current state")
+            return classification_results
+        
+        # Check session history for previous classification
+        messages = state.get("messages", [])
+        
+        # Look for assistant messages that mention disease classification
+        for message in reversed(messages):  # Start from most recent
+            if message.get("role") == "assistant":
+                content = message.get("content", "")
+                
+                # Check for classification patterns in message content
+                if ("diagnosis" in content.lower() or 
+                    "disease detected" in content.lower() or
+                    "classification result" in content.lower() or
+                    "confidence" in content.lower()):
+                    
+                    # Try to extract classification info from the message
+                    classification_info = self._extract_classification_from_message(content)
+                    if classification_info:
+                        logger.info(f"📋 Extracted classification from session history: {classification_info}")
+                        return classification_info
+        
+        # Check if there are any stored results in other state keys
+        disease_name = state.get("disease_name")
+        if disease_name:
+            logger.info(f"📋 Found disease name in state: {disease_name}")
+            return {
+                "disease": disease_name,
+                "confidence": state.get("confidence", 0.8),
+                "severity": state.get("severity", "moderate")
+            }
+        
+        logger.info("⚠️ No classification results found in current state or session history")
+        return None
+    
+    def _extract_classification_from_message(self, content: str) -> Dict[str, Any]:
+        """
+        Extract classification information from assistant message content
+        
+        Args:
+            content: Assistant message content
+            
+        Returns:
+            Classification results if extractable, None otherwise
+        """
+        import re
+        
+        # Common disease patterns that might appear in messages
+        disease_patterns = [
+            r"diagnosis[:\s]+([^\n\(]+?)(?:\s*\(|$)",  # "Diagnosis: Disease Name" 
+            r"disease[:\s]+([^\n\(]+?)(?:\s*\(|$)",    # "Disease: Disease Name"
+            r"detected[:\s]+([^\n\(]+?)(?:\s*\(|$)",   # "Detected: Disease Name"
+            r"identified[:\s]+([^\n\(]+?)(?:\s*\(|$)", # "Identified: Disease Name"
+            r"\*\*([^*\n]+)\*\*",                      # "**Disease Name**" (markdown bold)
+            r"disease detected[:\s]+([^\n\(]+?)(?:\s*\(|$)",
+            r"🔬[^:]*diagnosis[:\s]*([^\n\(]+?)(?:\s*\(|$)"
+        ]
+        
+        confidence_patterns = [
+            r"confidence[:\s]*(\d+(?:\.\d+)?)",
+            r"(\d+(?:\.\d+)?)\s*%\s*confidence",
+            r"(\d+(?:\.\d+)?)\s*confidence"
+        ]
+        
+        extracted_disease = None
+        extracted_confidence = None
+        
+        # Extract disease name
+        for pattern in disease_patterns:
+            match = re.search(pattern, content, re.IGNORECASE)
+            if match:
+                extracted_disease = match.group(1).strip().rstrip(".,!?")
+                break
+        
+        # Extract confidence
+        for pattern in confidence_patterns:
+            match = re.search(pattern, content, re.IGNORECASE)
+            if match:
+                confidence_str = match.group(1)
+                try:
+                    confidence_val = float(confidence_str)
+                    # Convert percentage to decimal if needed
+                    if confidence_val > 1:
+                        confidence_val = confidence_val / 100
+                    extracted_confidence = confidence_val
+                    break
+                except ValueError:
+                    continue
+        
+        if extracted_disease:
+            # Clean up the disease name - remove markdown artifacts and extra spaces
+            cleaned_disease = extracted_disease.strip().rstrip("*.,!?")
+            return {
+                "disease": cleaned_disease,
+                "confidence": extracted_confidence or 0.8,
+                "severity": "moderate"  # Default severity
+            }
+        
+        return None
+    
+    def _request_classification_for_prescription(self, state: WorkflowState) -> None:
+        """
+        Request classification before prescription can be provided
+        
+        Args:
+            state: Current workflow state
+        """
+        logger.info("💊 Prescription requested but no classification available - routing to classification")
+        
+        # Check if there's an image in the current request
+        if state.get("user_image"):
+            # Image available - route to classification
+            state["next_action"] = "classify"
+            add_message_to_state(
+                state,
+                "assistant", 
+                "🔬 I'll first analyze your plant image to identify the disease, then provide treatment recommendations."
+            )
+        else:
+            # No image - request image upload
+            state["next_action"] = "followup"  # Go back to followup to handle image request
+            add_message_to_state(
+                state,
+                "assistant",
+                "📸 To provide treatment recommendations, I need to first identify the plant disease. Please upload a clear image of the affected leaf or plant part."
+            )
+        
+        state["requires_user_input"] = not state.get("user_image", False)

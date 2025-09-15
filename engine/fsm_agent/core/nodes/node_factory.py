@@ -15,6 +15,7 @@ from .show_vendors_node import ShowVendorsNode
 from .order_booking_node import OrderBookingNode
 from .followup_node import FollowupNode
 from .completed_node import CompletedNode
+from .session_end_node import SessionEndNode
 from .error_node import ErrorNode
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ class NodeFactory:
             "order_booking": OrderBookingNode,
             "followup": FollowupNode,
             "completed": CompletedNode,
+            "session_end": SessionEndNode,
             "error": ErrorNode
         }
         

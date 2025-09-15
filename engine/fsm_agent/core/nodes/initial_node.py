@@ -140,21 +140,57 @@ class InitialNode(BaseNode):
             user_intent["wants_prescription"], 
             user_intent["wants_vendors"]
         ]):
-            # Pure general question (no tool requests)
-            state["next_action"] = "completed"
-            if general_answer:
-                add_message_to_state(
-                    state,
-                    "assistant", 
-                    f"🌾 {general_answer}\n\nIs there anything else I can help you with regarding plant disease diagnosis or treatment?"
-                )
+            # Check if this is a plant-related general question that might need clarification
+            user_message_lower = state["user_message"].lower()
+            
+            # Keywords that indicate potential plant disease/diagnosis requests (not general agriculture)
+            plant_health_keywords = ["disease", "diagnose", "analyze", "wrong", "problem", "issue", "sick", "dying", "spots", "infection", "symptom"]
+            plant_help_keywords = ["help", "what's wrong", "can you help", "need help"]
+            
+            # Must have plant context AND health/diagnostic intent 
+            has_plant_context = any(word in user_message_lower for word in ["plant", "leaf", "leaves", "crop"])
+            has_health_intent = any(word in user_message_lower for word in plant_health_keywords)
+            has_help_intent = any(phrase in user_message_lower for phrase in plant_help_keywords)
+            
+            # Plant-related if: (plant context AND health intent) OR (plant context AND help intent)
+            is_plant_related = has_plant_context and (has_health_intent or has_help_intent)
+            
+            if is_plant_related:
+                # FIXED: Plant-related general questions should get clarification, not direct completion
+                logger.info(f"🌱 Plant-related general question detected, routing to clarification instead of direct completion")
+                state["next_action"] = "general_help"
+                
+                help_msg = "🌱 I can help you with plant disease diagnosis and treatment! "
+                if general_answer:
+                    help_msg += f"{general_answer}\n\n"
+                
+                help_msg += """To get started, I can:
+• **Analyze plant diseases** - Upload a photo of your plant for diagnosis
+• **Recommend treatments** - Get specific treatment plans after diagnosis  
+• **Find suppliers** - Locate vendors for recommended treatments
+
+What would you like me to help you with? Please share more details or upload a plant image."""
+                
+                add_message_to_state(state, "assistant", help_msg)
+                state["requires_user_input"] = True
+                
             else:
-                add_message_to_state(
-                    state,
-                    "assistant", 
-                    "🌾 I understand you have a general farming question. I can provide basic guidance on agricultural topics, but I specialize in plant disease diagnosis and treatment. Feel free to ask about specific plant issues or upload a photo for disease analysis!"
-                )
-            state["requires_user_input"] = False
+                # Pure non-plant general question (agriculture advice, weather, etc.)
+                # FIXED: Keep session active - only end on explicit user intent
+                state["next_action"] = "general_help"  # Changed from "completed" to keep session active
+                if general_answer:
+                    add_message_to_state(
+                        state,
+                        "assistant", 
+                        f"🌾 {general_answer}\n\nIs there anything else I can help you with regarding plant disease diagnosis or treatment?"
+                    )
+                else:
+                    add_message_to_state(
+                        state,
+                        "assistant", 
+                        "🌾 I understand you have a general farming question. I can provide basic guidance on agricultural topics, but I specialize in plant disease diagnosis and treatment. Feel free to ask about specific plant issues or upload a photo for disease analysis!"
+                    )
+                state["requires_user_input"] = True  # FIXED: Keep session active for user response
         else:
             # General greeting or unclear intent
             state["next_action"] = "general_help"
@@ -347,6 +383,12 @@ Response (JSON only):"""
         Returns:
             True if this is a continuing conversation, False if it's a new conversation
         """
+        # CRITICAL: Check if session has ended - if so, treat as NEW conversation regardless of history
+        session_ended = state.get("session_ended", False)
+        if session_ended:
+            logger.info(f"🔄 Session {state['session_id']} has ended - treating as NEW conversation despite history")
+            return False
+        
         # Check for indicators that this is a loaded session with previous conversation history
         has_previous_results = bool(
             state.get("classification_results") or 
@@ -355,20 +397,77 @@ Response (JSON only):"""
             state.get("disease_name")
         )
         
-        # Check if there are previous messages (more than just the current user message)
+        # Check if there is meaningful conversation history from loaded session
+        # NOTE: Assistant messages are in the loaded session state, not in the current request
         messages = state.get("messages", [])
-        has_conversation_history = len(messages) > 1
+        
+        # Count conversation turns from loaded session history
+        assistant_messages = [msg for msg in messages if msg.get("role") == "assistant"]
+        user_messages = [msg for msg in messages if msg.get("role") == "user"]
+        
+        # Real conversation = Assistant has participated (responded to user messages)
+        has_meaningful_conversation = len(assistant_messages) > 0
+        
+        # Additional check: Do we have workflow results indicating previous successful interactions?
+        has_workflow_results = bool(
+            state.get("classification_results") or 
+            state.get("prescription_data") or
+            state.get("vendor_options")
+        )
+        
+        # Conversation history = meaningful conversation OR workflow results
+        has_conversation_history = has_meaningful_conversation or has_workflow_results
+        
+        # Debug logging for session analysis
+        current_user_message = state.get("user_message", "")
+        logger.info(f"🔍 Session conversation analysis:")
+        logger.info(f"   - Current message: '{current_user_message[:50]}...'")
+        logger.info(f"   - Total messages in session: {len(messages)}")
+        logger.info(f"   - Assistant messages: {len(assistant_messages)}")
+        logger.info(f"   - User messages: {len(user_messages)}")
+        logger.info(f"   - Has workflow results: {has_workflow_results}")
+        logger.info(f"   - Has meaningful conversation: {has_meaningful_conversation}")
+        
+        # Check for potential app duplicate pattern
+        if len(user_messages) > 1 and len(assistant_messages) == 0:
+            recent_user_contents = [msg.get("content", "") for msg in user_messages[-3:]]
+            duplicate_count = recent_user_contents.count(current_user_message)
+            if duplicate_count > 1:
+                logger.warning(f"⚠️ Detected {duplicate_count} identical user messages with no assistant responses - possible app duplicate issue")
+                # But don't override has_conversation_history if we have workflow results
+                if not has_workflow_results:
+                    has_conversation_history = False
         
         # Check if current node indicates this came from a previous workflow state
         current_node = state.get("current_node", "initial")
         was_in_middle_of_workflow = current_node != "initial"
         
-        is_continuing = has_previous_results or has_conversation_history or was_in_middle_of_workflow
+        # Additional check for completed state handling
+        # IMPORTANT: Users asking followup questions after completing a workflow should still be treated as continuing conversation
+        # Only treat as "new" if there's no meaningful history at all
+        is_in_completed_state = current_node == "completed" and not state.get("requires_user_input", False)
+        
+        # Modified logic: Completed state doesn't automatically mean "new conversation" 
+        # if we have meaningful history (assistant messages or workflow results)
+        should_treat_completed_as_new = is_in_completed_state and not (has_meaningful_conversation or has_workflow_results)
+        
+        is_continuing = (has_previous_results or has_conversation_history or was_in_middle_of_workflow) and not should_treat_completed_as_new
         
         if is_continuing:
             logger.info(f"🔍 Continuing conversation detected:")
             logger.info(f"   - Has previous results: {has_previous_results}")
-            logger.info(f"   - Has conversation history: {has_conversation_history} ({len(messages)} messages)")
+            logger.info(f"   - Has conversation history: {has_conversation_history} ({len(assistant_messages)} assistant, {len(user_messages)} user messages)")
             logger.info(f"   - Was in middle of workflow: {was_in_middle_of_workflow} (node: {current_node})")
+            logger.info(f"   - Is in completed state: {is_in_completed_state}")
+            logger.info(f"   - Should treat completed as new: {should_treat_completed_as_new}")
+        else:
+            logger.info(f"🆕 New conversation detected for session {state['session_id']}")
+            logger.info(f"   - Session ended: {session_ended}")
+            logger.info(f"   - In completed state: {is_in_completed_state}")
+            logger.info(f"   - Should treat completed as new: {should_treat_completed_as_new}")
+            logger.info(f"   - Assistant messages: {len(assistant_messages)}")
+            logger.info(f"   - User messages: {len(user_messages)}")
+            if len(user_messages) > 0 and len(assistant_messages) == 0:
+                logger.info(f"   - ⚠️ User messages without assistant responses detected (possible app duplicate)")
         
         return is_continuing

@@ -38,33 +38,56 @@ class FollowupNode(BaseNode):
         self.update_node_state(state)
         
         try:
-            # Use LLM to analyze user intent and determine action
-            followup_intent = await self._analyze_followup_intent(state)
+            # CRITICAL FIX: Check if we just completed a workflow step to prevent infinite loops
+            previous_node = state.get("previous_node", "")
+            classification_results = state.get("classification_results")
+            prescription_data = state.get("prescription_data")
+            vendor_options = state.get("vendor_options")
             
-            # Route based on LLM-determined intent
-            if followup_intent["action"] == "classify":
-                self._handle_classify_action(state)
-                    
-            elif followup_intent["action"] == "prescribe":
-                self._handle_prescribe_action(state)
-                    
-            elif followup_intent["action"] == "show_vendors":
-                self._handle_show_vendors_action(state)
-                    
-            elif followup_intent["action"] == "attention_overlay":
-                await self._handle_attention_overlay_action(state, followup_intent)
-                    
-            elif followup_intent["action"] == "restart":
-                self._handle_restart_action(state)
+            # If we just completed classification and have results, don't re-classify
+            if previous_node == "classifying" and classification_results:
+                logger.info(f"🚫 Preventing infinite loop: Classification just completed, showing results instead of re-classifying")
+                self._handle_classification_complete_followup(state)
                 
-            elif followup_intent["action"] == "complete":
-                await self._handle_complete_action(state)
+            # If we just completed prescription and have data, don't re-prescribe  
+            elif previous_node == "prescribing" and prescription_data:
+                logger.info(f"🚫 Preventing infinite loop: Prescription just completed, showing results instead of re-prescribing")
+                self._handle_prescription_complete_followup(state)
                 
-            elif followup_intent["action"] == "direct_response":
-                self._handle_direct_response_action(state, followup_intent)
+            # If we just completed vendor query and have options, don't re-query
+            elif previous_node in ["show_vendors", "vendor_query"] and vendor_options:
+                logger.info(f"🚫 Preventing infinite loop: Vendor query just completed, showing results instead of re-querying")
+                self._handle_vendor_complete_followup(state)
                 
             else:
-                self._handle_general_help_action(state)
+                # Normal flow: analyze user intent for new requests
+                logger.info(f"📋 Normal followup: Analyzing user intent (previous_node: {previous_node})")
+                followup_intent = await self._analyze_followup_intent(state)
+                
+                # Route based on LLM-determined intent
+                if followup_intent["action"] == "classify":
+                    await self._handle_classify_action(state)
+                        
+                elif followup_intent["action"] == "prescribe":
+                    await self._handle_prescribe_action(state)
+                        
+                elif followup_intent["action"] == "show_vendors":
+                    self._handle_show_vendors_action(state)
+                        
+                elif followup_intent["action"] == "attention_overlay":
+                    await self._handle_attention_overlay_action(state, followup_intent)
+                        
+                elif followup_intent["action"] == "restart":
+                    self._handle_restart_action(state)
+                    
+                elif followup_intent["action"] == "complete":
+                    await self._handle_complete_action(state)
+                    
+                elif followup_intent["action"] == "direct_response":
+                    self._handle_direct_response_action(state, followup_intent)
+                    
+                else:
+                    self._handle_general_help_action(state)
             
         except Exception as e:
             logger.error(f"Error in followup node: {str(e)}", exc_info=True)
@@ -73,23 +96,64 @@ class FollowupNode(BaseNode):
         
         return state
     
-    def _handle_classify_action(self, state: WorkflowState) -> None:
-        """Handle classification action"""
+    async def _handle_classify_action(self, state: WorkflowState) -> None:
+        """Handle classification action - can invoke tool directly or route to classifier node"""
         if state.get("user_image"):
-            state["next_action"] = "classify"
+            # Image available - directly invoke classification tool in followup context
+            logger.info("🔍 Invoking classification tool directly from followup node")
+            
+            try:
+                # Run classification tool
+                classification_tool = self.tools["classification"]
+                
+                # Prepare classification input
+                classification_input = {
+                    "image": state["user_image"],
+                    "plant_type": state.get("plant_type"),
+                    "location": state.get("location"),
+                    "season": state.get("season"),
+                    "growth_stage": state.get("growth_stage")
+                }
+                
+                # Run classification
+                classification_result = await classification_tool.arun(classification_input)
+                
+                if classification_result and not classification_result.get("error"):
+                    # Store classification results
+                    state["classification_results"] = classification_result
+                    state["disease_name"] = classification_result.get("disease_name")
+                    state["confidence"] = classification_result.get("confidence", 0)
+                    
+                    # Add classification message to conversation
+                    classification_msg = self._format_classification_message(classification_result)
+                    add_message_to_state(state, "assistant", classification_msg)
+                    
+                    # Store response for streaming
+                    state["assistant_response"] = classification_msg
+                    
+                    # Complete the classification within followup
+                    state["next_action"] = "await_user_input"
+                    state["requires_user_input"] = True
+                    
+                    logger.info(f"✅ Classification completed within followup node: {classification_result.get('disease_name')}")
+                else:
+                    # Classification failed - route to classifier node for error handling
+                    logger.warning("⚠️ Classification failed in followup, routing to classifier node")
+                    state["next_action"] = "classify"
+                    
+            except Exception as e:
+                logger.error(f"❌ Classification error in followup node: {str(e)}")
+                # Fall back to routing to classifier node
+                state["next_action"] = "classify"
         else:
             state["next_action"] = "request_image"
             add_message_to_state(state, "assistant", "📸 Please upload an image of the plant leaf you'd like me to analyze.")
             state["requires_user_input"] = True
     
-    def _handle_prescribe_action(self, state: WorkflowState) -> None:
-        """Handle prescription action"""
-        if state.get("classification_results"):
-            state["next_action"] = "prescribe"
-        else:
-            state["next_action"] = "classify_first"
-            add_message_to_state(state, "assistant", "🔬 I need to classify the disease first. Please upload an image of the affected leaf.")
-            state["requires_user_input"] = True
+    async def _handle_prescribe_action(self, state: WorkflowState) -> None:
+        """Handle prescription action - always route to prescribing node, let it handle classification checks"""
+        logger.info("💊 Routing to prescribing node for prescription processing")
+        state["next_action"] = "prescribe"
     
     def _handle_show_vendors_action(self, state: WorkflowState) -> None:
         """Handle show vendors action"""
@@ -129,8 +193,8 @@ class FollowupNode(BaseNode):
         # Check if user wants to actually end the session
         user_wants_to_end = await self._detect_goodbye_intent(state)
         if user_wants_to_end:
-            state["next_action"] = "complete"
-            mark_complete(state, "🌱 Thank you for using the plant disease diagnosis service! Take care of your plants!")
+            state["next_action"] = "session_end"  # Route to session_end node instead of complete
+            # The session_end node will handle the farewell message
         else:
             # User reached completion but didn't say goodbye, show ongoing support
             self._show_ongoing_support(state)
@@ -163,6 +227,65 @@ class FollowupNode(BaseNode):
 What would you like to do next?"""
         
         add_message_to_state(state, "assistant", help_message)
+        state["requires_user_input"] = True
+    
+    def _handle_classification_complete_followup(self, state: WorkflowState) -> None:
+        """Handle followup after classification completes to prevent infinite loops"""
+        classification_results = state.get("classification_results", {})
+        disease_name = classification_results.get("disease", "Unknown")
+        confidence = classification_results.get("confidence", 0)
+        
+        completion_msg = f"""✅ **Plant Disease Analysis Complete!**
+        
+🔬 **Diagnosis**: {disease_name}
+📊 **Confidence**: {confidence:.0%}
+
+What would you like to do next?
+• **Get treatment recommendations** - I can suggest specific treatments
+• **Find vendors** - Locate suppliers for treatments  
+• **Ask questions** - Any questions about the diagnosis
+• **Upload another image** - Analyze a different plant
+
+What's your next step?"""
+        
+        add_message_to_state(state, "assistant", completion_msg)
+        state["next_action"] = "completed"  # End workflow, wait for user's next choice
+        state["requires_user_input"] = True
+    
+    def _handle_prescription_complete_followup(self, state: WorkflowState) -> None:
+        """Handle followup after prescription completes to prevent infinite loops"""
+        completion_msg = """✅ **Treatment Recommendations Complete!**
+        
+I've provided detailed treatment recommendations for your plant.
+
+What would you like to do next?
+• **Find vendors** - Locate suppliers for the recommended treatments
+• **Ask questions** - Any questions about the treatment plan
+• **Get monitoring advice** - Learn how to track treatment progress
+• **Upload another image** - Analyze a different plant
+
+What's your next step?"""
+        
+        add_message_to_state(state, "assistant", completion_msg)
+        state["next_action"] = "completed"  # End workflow, wait for user's next choice
+        state["requires_user_input"] = True
+    
+    def _handle_vendor_complete_followup(self, state: WorkflowState) -> None:
+        """Handle followup after vendor query completes to prevent infinite loops"""
+        completion_msg = """✅ **Vendor Information Complete!**
+        
+I've provided supplier information for your plant treatments.
+
+What would you like to do next?
+• **Ask questions** - Any questions about the vendors or treatments
+• **Get application guidance** - Learn how to apply the treatments
+• **Monitor treatment** - Track your plant's recovery progress  
+• **Upload another image** - Analyze a different plant
+
+What's your next step?"""
+        
+        add_message_to_state(state, "assistant", completion_msg)
+        state["next_action"] = "completed"  # End workflow, wait for user's next choice
         state["requires_user_input"] = True
     
     def _show_ongoing_support(self, state: WorkflowState) -> None:
@@ -297,6 +420,28 @@ Response (JSON only):"""
             logger.warning(f"🚨 Failed to parse JSON from LLM followup response: {e}")
             
         return None
+    
+    def _format_classification_message(self, classification_result: Dict[str, Any]) -> str:
+        """Format classification result into user message"""
+        disease_name = classification_result.get("disease_name", "Unknown Disease")
+        confidence = classification_result.get("confidence", 0)
+        description = classification_result.get("description", "")
+        symptoms = classification_result.get("symptoms", [])
+        
+        message = f"🔬 **Analysis Complete!**\n\n"
+        message += f"**Disease Identified:** {disease_name}\n"
+        message += f"**Confidence:** {confidence:.1f}%\n\n"
+        
+        if description:
+            message += f"**Description:** {description}\n\n"
+        
+        if symptoms:
+            message += f"**Symptoms:** {', '.join(symptoms)}\n\n"
+        
+        message += "Would you like me to provide treatment recommendations for this condition?"
+        
+        return message
+    
     
     def _generate_prescription_dosage_info(self, state: WorkflowState) -> str:
         """Generate dosage information from prescription data"""

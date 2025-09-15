@@ -651,6 +651,53 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Add feedback buttons for all assistant messages
+        val feedbackContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(16, 8, 16, 16)
+            gravity = android.view.Gravity.START
+        }
+        
+        val thumbsUpButton = android.widget.ImageButton(this).apply {
+            layoutParams = LinearLayout.LayoutParams(96, 96).apply { 
+                setMargins(0, 0, 24, 0) 
+            }
+            setImageDrawable(ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_thumb_up))
+            background = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_input_add)
+            scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+            setPadding(18, 18, 18, 18)
+            contentDescription = "Thumbs up"
+            
+            setOnClickListener {
+                // Visual feedback - highlight the clicked button
+                setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.thumbs_up_selected))
+                
+                // Handle thumbs up feedback
+                handleThumbsUpFeedback(message)
+            }
+        }
+        
+        val thumbsDownButton = android.widget.ImageButton(this).apply {
+            layoutParams = LinearLayout.LayoutParams(96, 96)
+            setImageDrawable(ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_thumb_down))
+            background = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_delete)
+            scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+            setPadding(18, 18, 18, 18)
+            contentDescription = "Thumbs down"
+            
+            setOnClickListener {
+                // Visual feedback - highlight the clicked button  
+                setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.thumbs_down_selected))
+                
+                // Handle thumbs down feedback
+                handleThumbsDownFeedback(message)
+            }
+        }
+        
+        feedbackContainer.addView(thumbsUpButton)
+        feedbackContainer.addView(thumbsDownButton)
+        messageLayout.addView(feedbackContainer)
+
         messageCard.addView(messageLayout)
         return messageCard
     }
@@ -2612,5 +2659,46 @@ class MainActivity : ComponentActivity() {
         
         val dialog = builder.create()
         dialog.show()
+    }
+    
+    // Feedback handling methods
+    private fun handleThumbsUpFeedback(message: ConversationMessage) {
+        Log.d(TAG, "👍 Thumbs up feedback for message: ${message.text.take(50)}...")
+        
+        // Record feedback using FeedbackManager
+        val feedback = com.example.sasya_chikitsa.models.MessageFeedback(
+            messageText = message.text,
+            feedbackType = com.example.sasya_chikitsa.models.FeedbackType.THUMBS_UP,
+            sessionId = getCurrentSessionId(),
+            userContext = "User gave positive feedback"
+        )
+        com.example.sasya_chikitsa.models.FeedbackManager.recordFeedback(feedback)
+        
+        runOnUiThread {
+            android.widget.Toast.makeText(this, "👍 Thanks for your feedback!", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun handleThumbsDownFeedback(message: ConversationMessage) {
+        Log.d(TAG, "👎 Thumbs down feedback for message: ${message.text.take(50)}...")
+        
+        // Record feedback using FeedbackManager
+        val feedback = com.example.sasya_chikitsa.models.MessageFeedback(
+            messageText = message.text,
+            feedbackType = com.example.sasya_chikitsa.models.FeedbackType.THUMBS_DOWN,
+            sessionId = getCurrentSessionId(),
+            userContext = "User gave negative feedback - needs improvement"
+        )
+        com.example.sasya_chikitsa.models.FeedbackManager.recordFeedback(feedback)
+        
+        runOnUiThread {
+            android.widget.Toast.makeText(this, "👎 Thanks for your feedback! We'll improve.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    // Helper method to get current session ID
+    private fun getCurrentSessionId(): String? {
+        // Return the current session ID if available
+        return sessionId
     }
 }

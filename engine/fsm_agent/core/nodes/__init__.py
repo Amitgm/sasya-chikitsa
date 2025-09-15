@@ -11,6 +11,7 @@ from .show_vendors_node import ShowVendorsNode
 from .order_booking_node import OrderBookingNode
 from .followup_node import FollowupNode
 from .completed_node import CompletedNode
+from .session_end_node import SessionEndNode
 from .error_node import ErrorNode
 from .node_factory import NodeFactory
 
@@ -24,6 +25,7 @@ __all__ = [
     "OrderBookingNode",
     "FollowupNode",
     "CompletedNode",
+    "SessionEndNode",
     "ErrorNode",
     "NodeFactory"
 ]

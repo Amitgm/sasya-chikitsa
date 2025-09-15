@@ -40,15 +40,32 @@ class SessionManager:
             state: Current workflow state
         """
         try:
+            # CRITICAL: Validate state integrity before saving
+            if not self._validate_state_integrity(state):
+                logger.error(f"❌ Refusing to save corrupted state for session {state.get('session_id', 'unknown')}")
+                return
+            
             session_file = self._get_session_file(state["session_id"])
             
             # Convert state to JSON-serializable format
             serializable_state = self._serialize_state(state)
             
+            # Log key state information for debugging
+            messages_count = len(state.get("messages", []))
+            has_classification = bool(state.get("classification_results"))
+            has_prescription = bool(state.get("prescription_data"))
+            current_node = state.get("current_node", "unknown")
+            
+            logger.info(f"💾 Saving state for session {state['session_id']}")
+            logger.info(f"   - Messages: {messages_count}")
+            logger.info(f"   - Has classification: {has_classification}")
+            logger.info(f"   - Has prescription: {has_prescription}")
+            logger.info(f"   - Current node: {current_node}")
+            
             with open(session_file, 'w') as f:
                 json.dump(serializable_state, f, indent=2, default=str)
             
-            logger.info(f"💾 Saved state for session {state['session_id']}")
+            logger.info(f"✅ Successfully saved state for session {state['session_id']}")
             
         except Exception as e:
             logger.error(f"❌ Failed to save state for session {state['session_id']}: {str(e)}")
@@ -124,20 +141,38 @@ class SessionManager:
                 logger.info(f"📸 Updating image for session {session_id}")
                 existing_state["user_image"] = user_image
             
-            # Add user message to conversation history
-            existing_state["messages"].append({
-                "role": "user",
-                "content": user_message,
-                "timestamp": datetime.now().isoformat(),
-                "node": existing_state.get("current_node", "unknown"),
-                "image": user_image
-            })
+            # CRITICAL FIX: Check for message duplication before adding
+            existing_messages = existing_state.get("messages", [])
+            recent_user_messages = [msg for msg in existing_messages[-3:] if msg.get("role") == "user"]
+            
+            # Check if this exact message was already added recently (duplicate detection)
+            duplicate_found = any(
+                msg.get("content") == user_message 
+                for msg in recent_user_messages
+            )
+            
+            if not duplicate_found:
+                # Add user message to conversation history
+                existing_state["messages"].append({
+                    "role": "user",
+                    "content": user_message,
+                    "timestamp": datetime.now().isoformat(),
+                    "node": existing_state.get("current_node", "unknown"),
+                    "image": user_image
+                })
+                logger.info(f"➕ Added new user message to session {session_id}")
+            else:
+                logger.warning(f"⚠️ Duplicate user message detected for session {session_id}, skipping addition")
+                logger.warning(f"   Message: '{user_message[:50]}...'")
             
             return existing_state
         
         else:
             logger.info(f"🆕 Creating new session {session_id}")
-            return create_initial_state(session_id, user_message, user_image, context)
+            new_state = create_initial_state(session_id, user_message, user_image, context)
+            # Save the new state immediately so session existence checks work
+            self.save_state(new_state)
+            return new_state
     
     def _serialize_state(self, state: WorkflowState) -> Dict[str, Any]:
         """Convert WorkflowState to JSON-serializable format"""
@@ -185,3 +220,58 @@ class SessionManager:
                 
         except Exception as e:
             logger.error(f"❌ Failed to cleanup expired sessions: {str(e)}")
+    
+    def _validate_state_integrity(self, state: WorkflowState) -> bool:
+        """
+        Validate that the state hasn't been corrupted
+        
+        Args:
+            state: WorkflowState to validate
+            
+        Returns:
+            True if state is valid, False if corrupted
+        """
+        try:
+            # Check required fields
+            required_fields = ["session_id", "messages", "current_node"]
+            for field in required_fields:
+                if field not in state:
+                    logger.error(f"❌ State corruption: Missing required field '{field}'")
+                    return False
+            
+            # Check messages structure
+            messages = state.get("messages", [])
+            if not isinstance(messages, list):
+                logger.error(f"❌ State corruption: messages field is not a list")
+                return False
+            
+            # Check for message structure integrity
+            for i, msg in enumerate(messages):
+                if not isinstance(msg, dict):
+                    logger.error(f"❌ State corruption: Message {i} is not a dict")
+                    return False
+                if "role" not in msg or "content" not in msg:
+                    logger.error(f"❌ State corruption: Message {i} missing required fields")
+                    return False
+            
+            # Check for excessive message duplication (sign of bug)
+            user_messages = [msg for msg in messages if msg.get("role") == "user"]
+            if len(user_messages) > 1:
+                content_counts = {}
+                for msg in user_messages:
+                    content = msg.get("content", "")
+                    content_counts[content] = content_counts.get(content, 0) + 1
+                
+                # Check for duplicates
+                duplicates = {content: count for content, count in content_counts.items() if count > 1}
+                if duplicates:
+                    logger.warning(f"⚠️ State validation: Message duplicates found in session {state.get('session_id')}")
+                    for content, count in duplicates.items():
+                        logger.warning(f"   - '{content[:50]}...' appears {count} times")
+                        # Don't fail validation for duplicates, just warn (we'll fix them)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ State validation error: {str(e)}")
+            return False

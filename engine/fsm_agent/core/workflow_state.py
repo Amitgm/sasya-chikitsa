@@ -63,6 +63,10 @@ class WorkflowState(TypedDict):
     requires_user_input: NotRequired[bool]
     is_complete: NotRequired[bool]
     
+    # Session Lifecycle
+    session_ended: NotRequired[bool]
+    session_end_time: NotRequired[Optional[datetime]]
+    
     # Error Handling
     error_message: NotRequired[Optional[str]]
     retry_count: NotRequired[int]

@@ -172,10 +172,10 @@ Your plant has: **{farmer_disease_name}**
             state["next_action"] = "prescribe"  # Need prescription first
             logger.info("Setting next_action to 'prescribe' (vendors requested, prescription needed first)")
         else:
-            # User only wanted classification
-            state["next_action"] = "completed"
-            state["is_complete"] = True
-            logger.info("Setting next_action to 'completed' (user only wanted classification)")
+            # User only wanted classification - FIXED: Keep session active for follow-up
+            state["next_action"] = "followup"  # Changed from "completed" to keep session active
+            state["is_complete"] = False  # FIXED: Don't mark as complete, wait for user intent
+            logger.info("Setting next_action to 'followup' (classification complete, awaiting user input)")
             
             completion_msg = "✅ **Analysis Complete!** If you need treatment recommendations or want to find vendors, just let me know!"
             
