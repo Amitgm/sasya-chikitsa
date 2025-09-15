@@ -69,10 +69,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var imageFileName: TextView
     private lateinit var serverStatus: TextView
     private lateinit var settingsBtn: ImageButton
+    private lateinit var fsmModeBtn: ImageButton // Stub initialization in onCreate
 
-    private lateinit var responseTextView: TextView // TextView to show stream output
-    private lateinit var conversationScrollView: ScrollView // ScrollView for conversation
-    private lateinit var conversationContainer: LinearLayout // Container for individual messages
+    // Note: Chat interface replaced with RecyclerView in MainActivityFSM.kt  
+    private lateinit var responseTextView: TextView // Stub initialization in onCreate
+    private lateinit var conversationScrollView: ScrollView // Stub initialization in onCreate
+    private lateinit var conversationContainer: LinearLayout // Stub initialization in onCreate
 
     private var selectedImageUri: Uri? = null
     private var conversationHistory =
@@ -223,11 +225,17 @@ class MainActivity : ComponentActivity() {
         removeImageBtn = findViewById(R.id.removeImageBtn)
         uploadSection = findViewById(R.id.uploadSection)
         imageFileName = findViewById(R.id.imageFileName)
-        serverStatus = findViewById(R.id.serverStatus)
+        // Note: Using stateIndicator instead of serverStatus in new layout
+        serverStatus = findViewById(R.id.stateIndicator) 
         settingsBtn = findViewById(R.id.settingsBtn)
-        responseTextView = findViewById(R.id.responseTextView)
-        conversationScrollView = findViewById(R.id.conversationScrollView)
-            conversationContainer = findViewById(R.id.conversationContainer)
+        // Note: Create stub views for legacy MainActivity compatibility
+        // Since MainActivityFSM.kt is now the primary activity, create minimal stubs
+        fsmModeBtn = settingsBtn // Use settingsBtn as placeholder for fsmModeBtn
+        
+        // Create stub views for legacy chat interface (MainActivityFSM uses RecyclerView)
+        responseTextView = TextView(this).apply { text = "Legacy MainActivity - Use MainActivityFSM for full functionality" }
+        conversationScrollView = ScrollView(this) 
+        conversationContainer = LinearLayout(this)
         
         // Update server status display
         updateServerStatusDisplay()
@@ -242,6 +250,11 @@ class MainActivity : ComponentActivity() {
                 val exampleMessage =
                     "MAIN_ANSWER: Here are some common plant problems I can help with:\n• Leaf spots and discoloration\n• Wilting and drooping\n• Pest infestations\n• Nutrient deficiencies\n• Growth issues\n\nACTION_ITEMS: Identify plant disease from photo | Create plant care schedule | Get soil testing recommendations | Show organic treatment options"
             addAssistantMessage(exampleMessage)
+        }
+
+        // FSM Mode Button - Launch intelligent assistant
+        fsmModeBtn.setOnClickListener {
+            launchFSMMode()
         }
 
         // Settings Button
@@ -2443,6 +2456,16 @@ class MainActivity : ComponentActivity() {
         
         serverStatus.text = "📡 Server: $shortUrl"
         Log.d(TAG, "Server status updated: $friendlyName - $currentUrl")
+    }
+    
+    private fun launchFSMMode() {
+        try {
+            // Use the FSMLauncher to launch the intelligent assistant
+//            FSMLauncher.launchFSMDiagnosis(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch FSM mode", e)
+            Toast.makeText(this, "Failed to launch FSM Assistant: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun showSettingsDialog() {

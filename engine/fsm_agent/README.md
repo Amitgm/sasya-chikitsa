@@ -13,7 +13,7 @@ The agent uses **LangGraph StateGraph** for orchestrating a dynamic workflow wit
 - **SHOW_VENDORS** - Display vendor options and pricing
 - **ORDER_BOOKING** - Process orders with selected vendors
 - **FOLLOWUP** - Handle additional questions and navigation
-- **COMPLETED** - Terminal success state
+- **COMPLETED** - Terminal success state with contextual follow-up suggestions
 - **ERROR** - Terminal error state
 
 ## Key Features
@@ -39,6 +39,12 @@ The agent uses **LangGraph StateGraph** for orchestrating a dynamic workflow wit
 - Persistent conversation history
 - State tracking across interactions
 - Session cleanup and monitoring
+
+### 🎯 **Intelligent Follow-Up System**
+- Context-aware follow-up questions in completed state
+- Smart deduplication to avoid repeating discussed topics
+- Up to 3 relevant suggestions based on workflow path
+- Personalized recommendations based on user context
 
 ## Installation
 
@@ -187,8 +193,105 @@ User: "Yes, show me organic options"
   ↓
 [ORDER_BOOKING] → Process order with selected vendor
   ↓
-[COMPLETED] → "Order confirmed! Tracking: #12345"
+[COMPLETED] → "🌱 Workflow completed successfully!
+
+📝 Here are some additional things that might interest you:
+1. Would you like to know about vendors or suppliers who can provide these treatments?
+2. Do you need detailed application instructions or dosage information?  
+3. Would you like information about crop insurance options to protect your investment?"
 ```
+
+## Intelligent Follow-Up System 🎯
+
+The FSM agent features an advanced follow-up system that provides contextual suggestions when workflows complete, helping farmers discover additional relevant services and information.
+
+### How It Works
+
+1. **Context Analysis**: When a workflow reaches the completed state, the system analyzes:
+   - Previous workflow state (classification, prescription, vendor query)
+   - User context (location, plant type, season, growth stage)
+   - Conversation history to avoid repetition
+   - User intent indicators from previous interactions
+
+2. **Smart Suggestions**: Generates up to 3 relevant follow-up questions based on:
+   - **After Classification**: Treatment options, prevention tips, general plant care
+   - **After Prescription**: Vendor information, application instructions, dosage details
+   - **After Vendor Query**: Application timing, progress monitoring, follow-up care
+
+3. **Deduplication**: Automatically filters out topics already discussed by analyzing conversation history for relevant keywords
+
+### Follow-Up Examples by State
+
+#### After Classification
+```
+🌱 Workflow completed successfully!
+
+📝 Here are some additional things that might interest you:
+1. Would you like specific treatment recommendations for this disease?
+2. Would you like to know how to prevent this disease in the future?
+3. Are you interested in seasonal care tips for summer?
+```
+
+#### After Prescription  
+```
+🌱 Workflow completed successfully!
+
+📝 Here are some additional things that might interest you:
+1. Would you like to know about vendors or suppliers who can provide these treatments?
+2. Do you need detailed application instructions or dosage information?
+3. Would you like information about crop insurance options to protect your investment?
+```
+
+#### After Vendor Search
+```
+🌱 Workflow completed successfully!
+
+📝 Here are some additional things that might interest you:
+1. Would you like guidance on the best timing and method for applying treatments?
+2. Would you like to know how to monitor treatment progress and follow-up care?
+3. Are you interested in soil health assessment or nutrient management tips?
+```
+
+### Context-Aware Suggestions
+
+The system also provides personalized suggestions based on user context:
+
+- **Location-based**: Weather recommendations for specific regions
+- **Plant-specific**: Care tips tailored to the identified plant type
+- **Season-aware**: Seasonal advice and timing recommendations
+- **Technical interests**: Detailed analysis options for users wanting deeper insights
+- **Commercial interests**: Market insights, insurance options, and business aspects
+
+### API Integration
+
+Follow-up suggestions are automatically included in completion responses:
+
+**Streaming Response:**
+```
+event: state_update
+data: {
+  "current_node": "completed",
+  "assistant_response": "🌱 Workflow completed successfully!\n\n📝 Here are some additional things that might interest you:\n1. Would you like to know about vendors...",
+  "is_complete": true
+}
+```
+
+**JSON Response:**
+```json
+{
+  "response": "🌱 Workflow completed successfully!\n\n📝 Here are some additional things that might interest you:\n1. Would you like to know about vendors who can provide these treatments?\n2. Do you need detailed application instructions?\n3. Would you like crop insurance information?",
+  "session_id": "session_123",
+  "current_state": "completed"
+}
+```
+
+### Benefits
+
+- **Enhanced User Experience**: Proactively suggests relevant next steps
+- **Increased Engagement**: Helps users discover additional valuable services
+- **Contextual Relevance**: Suggestions tailored to specific user journey and needs
+- **Conversation Continuity**: Seamless transition from completion to new topics
+- **Smart Filtering**: Avoids repetition and information overload
 
 ## Attention Overlay Functionality 🎯
 

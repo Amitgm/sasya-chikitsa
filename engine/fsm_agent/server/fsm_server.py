@@ -5,11 +5,19 @@ This module provides a FastAPI server interface for the FSM-based planning agent
 """
 
 import asyncio
+import json
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 import os
 from contextlib import asynccontextmanager
+
+# Custom JSON encoder to handle datetime objects
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -221,14 +229,14 @@ async def chat_stream(request: ChatRequest):
                         state_data = chunk.get("data", {})
                         if isinstance(state_data, dict) and state_data:
                             # Single clean state update - contains all necessary information
-                            yield f"event: state_update\ndata: {str(state_data)}\n\n"
+                            yield f"event: state_update\ndata: {json.dumps(state_data, cls=CustomJSONEncoder)}\n\n"
                     
                     # Remove all duplicate streaming events - everything is in state_update now
                     
                     elif chunk_type == "error":
                         # Stream error
                         error = chunk.get("error", "Unknown error")
-                        yield f"event: error\ndata: {error}\n\n"
+                        yield f"event: error\ndata: {json.dumps({'error': error})}\n\n"
                         yield f"data: ❌ Error: {error}\n\n"
                         break
             else:
@@ -258,14 +266,14 @@ async def chat_stream(request: ChatRequest):
                         state_data = chunk.get("data", {})
                         if isinstance(state_data, dict) and state_data:
                             # Single clean state update - contains all necessary information
-                            yield f"event: state_update\ndata: {str(state_data)}\n\n"
+                            yield f"event: state_update\ndata: {json.dumps(state_data, cls=CustomJSONEncoder)}\n\n"
                     
                     # Remove all duplicate streaming events - everything is in state_update now
                     
                     elif chunk_type == "error":
                         # Stream error
                         error = chunk.get("error", "Unknown error")
-                        yield f"event: error\ndata: {error}\n\n"
+                        yield f"event: error\ndata: {json.dumps({'error': error})}\n\n"
                         yield f"data: ❌ Error: {error}\n\n"
                         break
             
@@ -273,7 +281,7 @@ async def chat_stream(request: ChatRequest):
             
         except Exception as e:
             logger.error(f"Error in streaming: {str(e)}", exc_info=True)
-            yield f"event: error\ndata: {str(e)}\n\n"
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
     
     return StreamingResponse(
         generate_stream(),

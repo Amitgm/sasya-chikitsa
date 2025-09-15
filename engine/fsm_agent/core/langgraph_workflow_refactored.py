@@ -29,7 +29,6 @@ try:
         can_retry, 
         mark_complete
     )
-    from .session_manager import SessionManager
     from .nodes import NodeFactory
     from ..tools.classification_tool import ClassificationTool
     from ..tools.prescription_tool import PrescriptionTool
@@ -46,7 +45,6 @@ except ImportError:
         can_retry, 
         mark_complete
     )
-    from engine.fsm_agent.core.session_manager import SessionManager
     from engine.fsm_agent.core.nodes import NodeFactory
     from engine.fsm_agent.tools.classification_tool import ClassificationTool
     from engine.fsm_agent.tools.prescription_tool import PrescriptionTool
@@ -85,14 +83,11 @@ class DynamicPlanningWorkflow:
         # Initialize node factory with tools and LLM
         self.node_factory = NodeFactory(self.tools, self.llm)
         
-        # Initialize session manager for state persistence
-        self.session_manager = SessionManager()
-        
         # Build the workflow graph
         self.workflow = self._build_workflow()
         self.app = self.workflow.compile()
         
-        logger.info("Dynamic Planning Workflow initialized with modular node architecture and session persistence")
+        logger.info("Refactored Dynamic Planning Workflow initialized with modular node architecture")
     
     def _build_workflow(self) -> StateGraph:
         """
@@ -219,9 +214,8 @@ class DynamicPlanningWorkflow:
                 logger.error(f"Error executing node {node_name}: {str(e)}", exc_info=True)
                 set_error(state, f"Error in {node_name} node: {str(e)}")
                 state["next_action"] = "error"
+                return state
         
-            return state
-    
         return node_executor
     
     # ==================== ROUTING FUNCTIONS ====================
@@ -233,8 +227,6 @@ class DynamicPlanningWorkflow:
         
         if next_action == "classify":
             return "classifying"
-        elif next_action == "followup":
-            return "followup"  # Route continuing conversations to followup node
         elif next_action == "request_image":
             return "followup"  # Stay in followup to wait for image
         elif next_action == "error":
@@ -330,8 +322,7 @@ class DynamicPlanningWorkflow:
             "request_image": "completed",  # End and wait for user to provide image
             "classify_first": "completed",  # End and wait for user to provide image
             "prescribe_first": "completed",  # End and wait for user to provide image
-            "general_help": "completed",  # End and wait for user input
-            "await_user_input": "completed"  # End workflow after direct response, await next user message
+            "general_help": "completed"  # End and wait for user input
         }
         
         return routing_map.get(next_action, "completed")
@@ -352,14 +343,14 @@ class DynamicPlanningWorkflow:
             Dictionary containing response and state information
         """
         try:
-            # Get or create workflow state with session persistence
-            state = self.session_manager.get_or_create_state(session_id, user_message, user_image, context)
+            # Import state creation function
+            from .workflow_state import create_initial_state
+            
+            # Create proper workflow state
+            state = create_initial_state(session_id, user_message, user_image, context)
             
             # Run workflow
             result = await self.app.ainvoke(state)
-            
-            # Save state after workflow execution
-            self.session_manager.save_state(result)
             
             return {
                 "success": True,
@@ -396,8 +387,12 @@ class DynamicPlanningWorkflow:
             Stream of INCREMENTAL state updates and responses (no duplication)
         """
         try:
-            # Get or create workflow state with session persistence
-            state = self.session_manager.get_or_create_state(session_id, user_message, user_image, context)
+            # Import state functions
+            from .workflow_state import create_initial_state, update_state_node, add_message_to_state
+            
+            # Create initial state for LangGraph entry point
+            # The initial node will set user_intent and other derived state
+            state = create_initial_state(session_id, user_message, user_image, context)
             
             logger.info(f"Starting refactored workflow stream for session {session_id} with message: {user_message[:50]}...")
             if user_image:
@@ -412,7 +407,6 @@ class DynamicPlanningWorkflow:
             previous_state = {}
             streamed_messages = set()
             last_node = None
-            final_state = None  # Track final complete state for saving
             
             # Stream workflow execution - LangGraph will manage state flow between nodes
             async for chunk in self.app.astream(state, stream_mode='updates'):
@@ -426,12 +420,6 @@ class DynamicPlanningWorkflow:
                         has_messages_for_log = bool(state_data.get("messages"))
                         break
                 logger.debug(f"Refactored workflow chunk for {session_id}: current_node={current_node_for_log}, has_messages={has_messages_for_log}")
-                
-                # Extract actual state data from LangGraph updates format FIRST
-                actual_state_data = {}
-                for node_name, state_data in chunk.items():
-                    if isinstance(state_data, dict):
-                        actual_state_data.update(state_data)
                 
                 # Calculate DELTA - only what's NEW/CHANGED from previous state
                 delta_chunk = self._calculate_state_delta(chunk, previous_state)
@@ -448,16 +436,11 @@ class DynamicPlanningWorkflow:
                             "data": filtered_delta
                         }
                 
-                # Check for assistant_response that needs immediate streaming
-                if "assistant_response" in actual_state_data:
-                    assistant_response = actual_state_data["assistant_response"]
-                    if assistant_response and assistant_response.strip():
-                        logger.info(f"🔄 Streaming assistant response for session {session_id}")
-                        yield {
-                            "type": "assistant_response",
-                            "session_id": session_id,
-                            "data": {"assistant_response": assistant_response}
-                        }
+                # Extract actual state data from LangGraph updates format
+                actual_state_data = {}
+                for node_name, state_data in chunk.items():
+                    if isinstance(state_data, dict):
+                        actual_state_data.update(state_data)
                 
                 # Only track state transitions for logging purposes
                 current_node = actual_state_data.get("current_node")
@@ -468,16 +451,7 @@ class DynamicPlanningWorkflow:
                 # Update previous state for next iteration (CLEAN COPY - no images/overlays)
                 previous_state = self._create_clean_state_copy_from_actual_data(actual_state_data)
             
-                # Track the final state (don't save every intermediate state)
-                if actual_state_data:
-                    final_state = actual_state_data
-            
-            # Save the final complete state (only once, after workflow completes)
-            if final_state:
-                self.session_manager.save_state(final_state)
-                logger.info(f"💾 Saved final workflow state for session {session_id}")
-            
-            logger.info(f"Workflow stream completed for session {session_id} with state persistence")
+            logger.info(f"Refactored workflow stream completed for session {session_id}")
             
         except Exception as e:
             logger.error(f"Error in refactored stream processing: {str(e)}", exc_info=True)
@@ -534,7 +508,7 @@ class DynamicPlanningWorkflow:
         # 5. Remove verbose timestamps that change constantly
         if "last_update_time" in filtered:
             del filtered["last_update_time"]
-        
+            
         return filtered
     
     def _calculate_state_delta(self, current_state: Dict[str, Any], previous_state: Dict[str, Any]) -> Dict[str, Any]:

@@ -107,7 +107,7 @@
             │                           │
     ┌───────▼────────┐                  │
     │   COMPLETED    │◄─────────────────┘
-    │               │
+    │ (Follow-ups)   │
     └────────────────┘
             │
             ▼
@@ -291,6 +291,7 @@ LangChain BaseTool Interface
 | **Error Handling** | `error_message` | `Optional[str]` | Error details |
 |  | `retry_count` | `int` | Retry attempts |
 |  | `max_retries` | `int` | Max retry limit |
+|| **Assistant Responses** | `assistant_response` | `Optional[str]` | Streaming responses with follow-ups |
 
 ### State Update Flow
 

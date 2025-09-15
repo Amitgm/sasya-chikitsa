@@ -105,6 +105,7 @@ stateDiagram-v2
     note right of SHOW_VENDORS: Display local\nvendors & pricing
     note right of ORDER_BOOKING: Process order\nwith selected vendor
     note right of FOLLOWUP: Handle additional\nquestions & navigation
+    note right of COMPLETED: Terminal state with\ncontextual follow-ups
 ```
 
 ## 🧠 State Node Execution Flow
@@ -218,38 +219,40 @@ graph LR
         H[Flow Control]
         I[Error Handling]
         J[Metadata]
+        K[Assistant Responses]
     end
     
     subgraph "State Updates"
-        K[add_message_to_state]
-        L[update_state_node]
-        M[set_error]
-        N[mark_complete]
+        L[add_message_to_state]
+        M[update_state_node]
+        N[set_error]
+        O[mark_complete]
     end
     
-    A --> K
-    B --> L
-    C --> L
-    D --> L
-    E --> L
-    F --> L
-    G --> K
-    H --> N
-    I --> M
-    J --> L
+    A --> L
+    B --> M
+    C --> M
+    D --> M
+    E --> M
+    F --> M
+    G --> L
+    H --> O
+    I --> N
+    J --> M
+    K --> L
     
     subgraph "Persistence Layer"
-        O[In-Memory Sessions]
-        P[Conversation History]
-        Q[State Snapshots]
+        P[In-Memory Sessions]
+        Q[Conversation History]
+        R[State Snapshots]
     end
     
-    K --> O
     L --> P
-    N --> Q
+    M --> Q
+    O --> R
     
     style A fill:#e8f5e8
-    style K fill:#fff3e0
+    style L fill:#fff3e0
 ```
 
 ## 🌐 API Architecture & Endpoints
