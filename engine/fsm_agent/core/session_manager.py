@@ -141,6 +141,25 @@ class SessionManager:
                 logger.info(f"📸 Updating image for session {session_id}")
                 existing_state["user_image"] = user_image
             
+            # FIXED: Update context fields for existing sessions  
+            if context:
+                logger.info(f"🔄 Updating context for existing session {session_id}: {context}")
+                
+                # Update individual context fields (preserve existing if new context doesn't have them)
+                existing_state["plant_type"] = context.get("plant_type") or existing_state.get("plant_type")
+                existing_state["location"] = context.get("location") or existing_state.get("location") 
+                existing_state["season"] = context.get("season") or existing_state.get("season")
+                existing_state["growth_stage"] = context.get("growth_stage") or existing_state.get("growth_stage")
+                
+                # Update full context for tools (merge with existing)
+                existing_context = existing_state.get("user_context", {})
+                merged_context = {**existing_context, **context}
+                existing_state["user_context"] = merged_context
+                
+                logger.info(f"✅ Updated context - location: {existing_state.get('location')}, season: {existing_state.get('season')}")
+            else:
+                logger.info(f"⚠️ No context provided for session {session_id}")
+            
             # CRITICAL FIX: Check for message duplication before adding
             existing_messages = existing_state.get("messages", [])
             recent_user_messages = [msg for msg in existing_messages[-3:] if msg.get("role") == "user"]
@@ -185,6 +204,53 @@ class SessionManager:
             # Save the new state immediately so session existence checks work
             self.save_state(new_state)
             return new_state
+    
+    def deduplicate_messages(self, state: WorkflowState) -> WorkflowState:
+        """
+        Remove duplicate messages from session state
+        
+        Args:
+            state: Workflow state to clean
+            
+        Returns:
+            Cleaned state with duplicates removed
+        """
+        if "messages" not in state or not state["messages"]:
+            return state
+        
+        messages = state["messages"]
+        if len(messages) <= 1:
+            return state
+        
+        # Track unique messages by content + role + timestamp to avoid duplicates
+        seen_messages = set()
+        deduplicated_messages = []
+        
+        for message in messages:
+            # Create a unique key for each message
+            message_key = (
+                message.get("role", ""),
+                message.get("content", ""),
+                message.get("timestamp", "")
+            )
+            
+            if message_key not in seen_messages:
+                seen_messages.add(message_key)
+                deduplicated_messages.append(message)
+            else:
+                logger.info(f"🗑️ Removed duplicate message: {message.get('content', '')[:50]}...")
+        
+        # Update state with deduplicated messages
+        original_count = len(messages)
+        deduplicated_count = len(deduplicated_messages)
+        
+        if original_count != deduplicated_count:
+            state["messages"] = deduplicated_messages
+            logger.info(f"✅ Deduplication complete: {original_count} → {deduplicated_count} messages")
+        else:
+            logger.info("✅ No duplicate messages found")
+        
+        return state
     
     def _serialize_state(self, state: WorkflowState) -> Dict[str, Any]:
         """Convert WorkflowState to JSON-serializable format"""

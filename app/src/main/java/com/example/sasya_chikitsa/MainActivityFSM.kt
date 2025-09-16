@@ -1,6 +1,7 @@
 package com.example.sasya_chikitsa
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -54,7 +55,7 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
     }
     
     // UI Components
-    private lateinit var stateIndicator: TextView
+    private lateinit var profileBtn: ImageButton
     private lateinit var settingsBtn: ImageButton
     private lateinit var chatRecyclerView: RecyclerView
     private lateinit var followUpContainer: LinearLayout
@@ -133,7 +134,7 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
     
     private fun initializeViews() {
         // Header components
-        stateIndicator = findViewById(R.id.stateIndicator)
+        profileBtn = findViewById(R.id.profileBtn)
         settingsBtn = findViewById(R.id.settingsBtn)
         
         // Chat components
@@ -150,14 +151,15 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         imageFileName = findViewById(R.id.imageFileName)
         removeImageBtn = findViewById(R.id.removeImageBtn)
         
-        // Initialize server status display
-        updateServerStatusDisplay()
+        // Initialize profile button state
+        updateProfileButtonState()
     }
     
     private fun setupClickListeners() {
         uploadBtn.setOnClickListener { openImagePicker() }
         sendBtn.setOnClickListener { sendMessage() }
         removeImageBtn.setOnClickListener { clearSelectedImage() }
+        profileBtn.setOnClickListener { showAgriculturalProfileDialog() }
         settingsBtn.setOnClickListener { showServerSettings() }
         
         // Enter key to send message
@@ -262,18 +264,28 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         // Show thinking indicator
         showThinkingIndicator()
         
-        // Update state
-        updateStateIndicator("Processing...")
+        // Status updates handled by profile button state management
     }
     
     private fun sendToFSMAgent(message: String, imageBase64: String?) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                // Get agricultural profile for personalized responses
+                val userProfile = getUserAgriculturalProfile()
+                
+                // Debug: Log what profile we got
+                Log.d(TAG, "🌾 User agricultural profile: $userProfile")
+                
+                val context = createEnrichedContext(userProfile)
+                
+                // Debug: Log the context being sent to server
+                Log.d(TAG, "📤 Sending context to server: $context")
+                
                 val request = streamHandler.createChatRequest(
                     message = message,
                     imageBase64 = imageBase64,
                     sessionId = currentSessionState.sessionId,
-                    context = FSMRetrofitClient.getDefaultContext()
+                    context = context
                 )
                 
                 Log.d(TAG, "Sending request to FSM agent: $message")
@@ -286,7 +298,7 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
                 } else {
                     withContext(Dispatchers.Main) {
                         showError("Failed to connect to FSM agent: ${response.message()}")
-                        updateStateIndicator("Error")
+                        // Error state handled by user interaction, not status indicator
                     }
                 }
                 
@@ -294,9 +306,63 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
                 Log.e(TAG, "Error sending message to FSM agent", e)
                 withContext(Dispatchers.Main) {
                     showError("Connection error: ${e.message}")
-                    updateStateIndicator("Error")
+                    // Error state handled by user interaction, not status indicator
                 }
             }
+        }
+    }
+    
+    /**
+     * Create enriched context with agricultural profile for personalized responses
+     */
+    private fun createEnrichedContext(userProfile: Map<String, String>): Map<String, Any> {
+        // Helper function to get non-empty value or default
+        fun getValueOrDefault(key: String, default: String): String {
+            return userProfile[key]?.let { if (it.isBlank()) default else it } ?: default
+        }
+        
+        val userState = getValueOrDefault("state", "Tamil Nadu")
+        val userFarmSize = getValueOrDefault("farm_size", "Small (< 1 acre)")
+        val currentSeason = getCurrentSeason()
+        
+        Log.d(TAG, "🏛️ Using state: $userState, farm size: $userFarmSize, season: $currentSeason")
+        
+        return mapOf(
+            // Platform information
+            "platform" to "android",
+            "app_version" to "1.0.0",
+            "timestamp" to System.currentTimeMillis(),
+            
+            // Agricultural context for personalized responses
+            "location" to userState,
+            "state" to userState,  
+            "farm_size" to userFarmSize,
+            "farming_experience" to "intermediate", // Default value
+            "crop_type" to "general", // Default to general plant diagnosis
+            "season" to currentSeason,
+            "growth_stage" to "unknown", // Can be determined from image analysis
+            
+            // Request preferences
+            "streaming_requested" to true,
+            "detailed_analysis" to true,
+            "include_confidence" to true,
+            "image_source" to "android_camera",
+            "fsm_version" to "2.0" // FSM agent version
+        )
+    }
+    
+    /**
+     * Get current season based on current month (0-based: Jan=0, Dec=11)
+     */
+    private fun getCurrentSeason(): String {
+        val calendar = java.util.Calendar.getInstance()
+        val month = calendar.get(java.util.Calendar.MONTH)
+        Log.d(TAG, "🗓️ Current month (0-based): $month")
+        return when (month) {
+            in 2..4 -> "spring"      // March(2) - May(4)
+            in 5..7 -> "summer"      // June(5) - August(7)  
+            in 8..10 -> "autumn"     // September(8) - November(10)
+            else -> "winter"         // December(11) - February(1)
         }
     }
     
@@ -318,7 +384,7 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         
         // Show thinking indicator
         showThinkingIndicator()
-        updateStateIndicator("Processing...")
+        // Processing state handled by thinking indicator, not status indicator
         
         // Hide follow-up container
         followUpContainer.visibility = View.GONE
@@ -333,7 +399,7 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
             currentSessionState.previousNode = stateUpdate.previousNode
             
             val displayName = streamHandler.getStateDisplayName(node)
-            updateStateIndicator(displayName)
+            // State display handled by UI elements, not banner status indicator
         }
         
         // Update session ID if provided
@@ -398,7 +464,7 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         runOnUiThread {
             stopThinkingIndicator()
             showError(error)
-            updateStateIndicator("Error")
+            // Error state handled by user interaction, not status indicator
         }
     }
     
@@ -406,16 +472,27 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         Log.d(TAG, "Stream completed")
         runOnUiThread {
             stopThinkingIndicator()
-            if (currentSessionState.currentNode == "completed") {
-                updateStateIndicator("Complete")
-            }
+            // Status updates no longer needed - profile button manages its own state
         }
     }
     
-    // UI Helper methods
-    private fun updateStateIndicator(state: String) {
+    /**
+     * Update profile button based on user's agricultural profile setup status
+     */
+    private fun updateProfileButtonState() {
         runOnUiThread {
-            stateIndicator.text = state
+            val prefs = getSharedPreferences("agricultural_profile", Context.MODE_PRIVATE)
+            val hasProfile = prefs.getBoolean("profile_setup_completed", false)
+            
+            if (hasProfile) {
+                // User has profile - show normal green tint
+                profileBtn.setColorFilter(ContextCompat.getColor(this, R.color.forest_green))
+                profileBtn.contentDescription = "View Agricultural Profile"
+            } else {
+                // User needs to set up profile - show attention-grabbing color
+                profileBtn.setColorFilter(ContextCompat.getColor(this, R.color.warm_amber))
+                profileBtn.contentDescription = "Set Up Agricultural Profile"
+            }
         }
     }
     
@@ -521,7 +598,6 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
 
                     if (newUrl.isNotEmpty() && ServerConfig.isValidUrl(newUrl)) {
                         ServerConfig.setServerUrl(this, newUrl)
-                        updateServerStatusDisplay()
                         
                         val serverName = if (selectedPosition == defaultUrls.size - 1) "Custom Server" else defaultUrls[selectedPosition].first
                         Toast.makeText(this, "✅ Connected to $serverName\n$newUrl", Toast.LENGTH_LONG).show()
@@ -585,36 +661,86 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         }
     }
     
+    // Server status management removed - profile button replaced status indicator
+    
     /**
-     * Update the server status indicator in the header
+     * Show dialog to collect/update user agricultural profile
      */
-    private fun updateServerStatusDisplay() {
-        val currentUrl = ServerConfig.getServerUrl(this)
+    private fun showAgriculturalProfileDialog() {
+        val currentProfile = getUserAgriculturalProfile()
+        val dialogView = layoutInflater.inflate(R.layout.dialog_agricultural_profile, null)
         
-        // Update status indicator based on server configuration
-        when {
-            currentUrl.contains("localhost") || currentUrl.contains("127.0.0.1") -> {
-                stateIndicator.text = "●"
-                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
-                stateIndicator.contentDescription = "Local Development Server"
+        // Get dialog elements
+        val stateSpinner = dialogView.findViewById<Spinner>(R.id.stateSpinner)
+        val farmSizeSpinner = dialogView.findViewById<Spinner>(R.id.farmSizeSpinner)
+        
+        // Set up spinners
+        setupProfileSpinner(stateSpinner, getStateOptions(), currentProfile["state"])
+        setupProfileSpinner(farmSizeSpinner, getFarmSizeOptions(), currentProfile["farm_size"])
+        
+        AlertDialog.Builder(this)
+            .setTitle("🌱 Agricultural Profile")
+            .setMessage("Help us provide personalized plant advice:")
+            .setView(dialogView)
+            .setPositiveButton("Save") { _, _ ->
+                val newProfile = mapOf(
+                    "state" to stateSpinner.selectedItem.toString(),
+                    "farm_size" to farmSizeSpinner.selectedItem.toString()
+                )
+                saveAgriculturalProfile(newProfile)
+                Toast.makeText(this, "✅ Profile saved successfully!", Toast.LENGTH_SHORT).show()
             }
-            currentUrl.contains("production") -> {
-                stateIndicator.text = "●"
-                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
-                stateIndicator.contentDescription = "Production Server"
-            }
-            currentUrl.contains("staging") -> {
-                stateIndicator.text = "●"
-                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_blue_light))
-                stateIndicator.contentDescription = "Staging Server"
-            }
-            else -> {
-                stateIndicator.text = "●"
-                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
-                stateIndicator.contentDescription = "Custom Server"
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+    
+    private fun getUserAgriculturalProfile(): Map<String, String> {
+        val prefs = getSharedPreferences("agricultural_profile", Context.MODE_PRIVATE)
+        return mapOf(
+            "state" to (prefs.getString("state", null) ?: ""),
+            "farm_size" to (prefs.getString("farm_size", null) ?: "")
+        )
+    }
+    
+    private fun saveAgriculturalProfile(profile: Map<String, String>) {
+        val prefs = getSharedPreferences("agricultural_profile", Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        
+        profile.forEach { (key, value) ->
+            editor.putString(key, value)
+        }
+        editor.putBoolean("profile_setup_completed", true)
+        editor.apply()
+        
+        // Update profile button to reflect completed setup
+        updateProfileButtonState()
+    }
+    
+    private fun setupProfileSpinner(spinner: Spinner, options: List<String>, selectedValue: String?) {
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, options)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
+        
+        selectedValue?.let { value ->
+            val position = options.indexOf(value)
+            if (position >= 0) {
+                spinner.setSelection(position)
             }
         }
     }
+    
+    private fun getStateOptions() = listOf(
+        "Tamil Nadu", "Karnataka", "Andhra Pradesh", "Telangana", "Kerala",
+        "Maharashtra", "Gujarat", "Rajasthan", "Punjab", "Haryana",
+        "Uttar Pradesh", "Madhya Pradesh", "Bihar", "West Bengal", "Odisha"
+    )
+    
+    private fun getFarmSizeOptions() = listOf(
+        "Small (< 1 acre)",
+        "Medium (1-5 acres)", 
+        "Large (5-10 acres)",
+        "Very Large (> 10 acres)"
+    )
     
     // Utility methods
     private fun resizeBitmap(bitmap: Bitmap, maxSize: Int): Bitmap {

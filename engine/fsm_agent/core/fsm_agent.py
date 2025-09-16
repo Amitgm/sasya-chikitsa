@@ -200,7 +200,7 @@ class DynamicPlanningAgent:
                 
                 # Create initial state for this session
                 from .workflow_state import create_initial_state
-                initial_state = create_initial_state(session_id, user_message, user_image)
+                initial_state = create_initial_state(session_id, user_message, user_image, context)
                 
                 # Save the new session
                 session_manager.save_state(initial_state)
