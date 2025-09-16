@@ -1,18 +1,26 @@
 package com.example.sasya_chikitsa
 
-import android.app.Activity
+import android.content.ContentValues
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import android.view.View
-import android.widget.*
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.Spinner
+import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -20,25 +28,26 @@ import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import java.util.UUID
 import com.example.sasya_chikitsa.config.ServerConfig
-import com.example.sasya_chikitsa.fsm.*
-import com.example.sasya_chikitsa.network.RetrofitClient
-import com.example.sasya_chikitsa.models.MessageFeedback
-import com.example.sasya_chikitsa.models.FeedbackType
+import com.example.sasya_chikitsa.fsm.ChatAdapter
+import com.example.sasya_chikitsa.fsm.ChatMessage
+import com.example.sasya_chikitsa.fsm.FSMRetrofitClient
+import com.example.sasya_chikitsa.fsm.FSMSessionState
+import com.example.sasya_chikitsa.fsm.FSMStateUpdate
+import com.example.sasya_chikitsa.fsm.FSMStreamHandler
 import com.example.sasya_chikitsa.models.FeedbackManager
+import com.example.sasya_chikitsa.models.FeedbackType
+import com.example.sasya_chikitsa.models.MessageFeedback
+import com.example.sasya_chikitsa.network.RetrofitClient
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.ResponseBody
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 import java.io.ByteArrayOutputStream
-import java.util.*
+import java.io.InputStream
+import java.util.UUID
 
 /**
  * Main Activity with integrated FSM Agent for plant diagnosis
@@ -105,6 +114,9 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         
         // Add welcome message
         addWelcomeMessage()
+        
+        // Copy test images to gallery on first launch
+        copyTestImagesToGallery()
         
         Log.d(TAG, "FSM Activity initialized")
     }
@@ -741,6 +753,97 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         "Large (5-10 acres)",
         "Very Large (> 10 acres)"
     )
+    
+    /**
+     * Copy bundled test images to device photo gallery on first launch
+     */
+    private fun copyTestImagesToGallery() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val prefs = getSharedPreferences("app_setup", Context.MODE_PRIVATE)
+                val imagesCopied = prefs.getBoolean("test_images_copied", false)
+                
+                if (!imagesCopied) {
+                    Log.d(TAG, "📸 Copying test images to device gallery...")
+                    
+                    val testImages = listOf(
+                        R.raw.apple_mosaic_1 to "Apple Mosaic Disease - Sample 1.jpg",
+                        R.raw.apple_mosaic_2 to "Apple Mosaic Disease - Sample 2.jpg", 
+                        R.raw.eggplant_leaf_spot to "Eggplant Leaf Spot Disease - Sample.jpg",
+                        R.raw.eggplant_mosaic_virus to "Eggplant Mosaic Virus - Sample.jpg"
+                    )
+                    
+                    var copiedCount = 0
+                    testImages.forEach { (resourceId, displayName) ->
+                        if (copyRawImageToGallery(resourceId, displayName)) {
+                            copiedCount++
+                        }
+                    }
+                    
+                    // Mark as completed
+                    prefs.edit().putBoolean("test_images_copied", true).apply()
+                    
+                    withContext(Dispatchers.Main) {
+                        if (copiedCount > 0) {
+                            Toast.makeText(
+                                this@MainActivityFSM,
+                                "✅ $copiedCount sample plant images added to your gallery for testing!",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            Log.d(TAG, "📸 Successfully copied $copiedCount test images to gallery")
+                        }
+                    }
+                } else {
+                    Log.d(TAG, "📸 Test images already copied to gallery")
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error copying test images to gallery", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivityFSM, "⚠️ Could not add sample images to gallery", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    
+    /**
+     * Copy a single raw resource image to the device gallery
+     */
+    private fun copyRawImageToGallery(resourceId: Int, displayName: String): Boolean {
+        return try {
+            // Open raw resource file
+            val inputStream: InputStream = resources.openRawResource(resourceId)
+            
+            // Prepare content values for MediaStore
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Sasya Chikitsa Samples")
+            }
+            
+            // Insert into MediaStore
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+            
+            if (uri != null) {
+                // Write image data
+                contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+                inputStream.close()
+                
+                Log.d(TAG, "✅ Successfully copied $displayName to gallery")
+                true
+            } else {
+                Log.e(TAG, "❌ Failed to create MediaStore entry for $displayName")
+                inputStream.close()
+                false
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error copying resource $resourceId to gallery", e)
+            false
+        }
+    }
     
     // Utility methods
     private fun resizeBitmap(bitmap: Bitmap, maxSize: Int): Bitmap {
