@@ -236,6 +236,13 @@ async def chat_stream(request: ChatRequest):
                         if isinstance(response_data, dict) and response_data:
                             yield f"event: assistant_response\ndata: {json.dumps(response_data, cls=CustomJSONEncoder)}\n\n"
                     
+                    elif chunk_type == "attention_overlay":
+                        # Stream attention overlay visualization data
+                        overlay_data = chunk.get("data", {})
+                        if isinstance(overlay_data, dict) and overlay_data.get("attention_overlay"):
+                            yield f"event: attention_overlay\ndata: {json.dumps(overlay_data, cls=CustomJSONEncoder)}\n\n"
+                            logger.info(f"🎯 Streamed attention overlay for session {chunk.get('session_id')}")
+                    
                     elif chunk_type == "error":
                         # Stream error
                         error = chunk.get("error", "Unknown error")
@@ -271,7 +278,12 @@ async def chat_stream(request: ChatRequest):
                             # Single clean state update - contains all necessary information
                             yield f"event: state_update\ndata: {json.dumps(state_data, cls=CustomJSONEncoder)}\n\n"
                     
-                    # Remove all duplicate streaming events - everything is in state_update now
+                    elif chunk_type == "attention_overlay":
+                        # Stream attention overlay visualization data
+                        overlay_data = chunk.get("data", {})
+                        if isinstance(overlay_data, dict) and overlay_data.get("attention_overlay"):
+                            yield f"event: attention_overlay\ndata: {json.dumps(overlay_data, cls=CustomJSONEncoder)}\n\n"
+                            logger.info(f"🎯 Streamed attention overlay for new session {chunk.get('session_id')}")
                     
                     elif chunk_type == "error":
                         # Stream error

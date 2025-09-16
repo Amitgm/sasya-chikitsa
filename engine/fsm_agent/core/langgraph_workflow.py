@@ -477,8 +477,24 @@ class DynamicPlanningWorkflow:
                             "data": filtered_delta
                         }
                 
-                # CRITICAL FIX: Only stream NEW assistant_response, not old accumulated data
+                # SPECIAL CASE: Stream attention overlay if classification completed
                 current_node = actual_state_data.get("current_node", "")
+                if current_node == "classifying" and "attention_overlay" in actual_state_data and actual_state_data.get("attention_overlay"):
+                    attention_overlay = actual_state_data["attention_overlay"]
+                    
+                    # Stream attention overlay as separate event (not saved in state persistence)
+                    yield {
+                        "type": "attention_overlay",
+                        "session_id": session_id,
+                        "data": {
+                            "attention_overlay": attention_overlay,
+                            "disease_name": actual_state_data.get("disease_name"),
+                            "confidence": actual_state_data.get("confidence")
+                        }
+                    }
+                    logger.info(f"🎯 Streamed attention overlay for session {session_id}")
+                
+                # CRITICAL FIX: Only stream NEW assistant_response, not old accumulated data
                 previous_node = actual_state_data.get("previous_node", "")
                 logger.debug(f"🔍 DEBUG: actual_state_data keys: {list(actual_state_data.keys())}")
                 

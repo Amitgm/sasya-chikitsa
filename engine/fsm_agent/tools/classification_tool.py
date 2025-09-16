@@ -82,10 +82,17 @@ class ClassificationTool(BaseTool):
                     input_text=f"Plant: {kwargs.get('plant_type', 'unknown')}, Location: {kwargs.get('location', 'unknown')}, Season: {kwargs.get('season', 'unknown')}"
                 )
                 
-                # Consume all yielded messages to get final result
+                # Consume all yielded messages to get final result and extract attention overlay
                 messages = []
+                attention_overlay_b64 = None
+                
                 for message in classification_generator:
                     messages.append(message)
+                    
+                    # Check for attention overlay data
+                    if "ATTENTION_OVERLAY_BASE64:" in message:
+                        attention_overlay_b64 = message.split("ATTENTION_OVERLAY_BASE64:")[1].strip()
+                        logger.info("Attention overlay captured successfully")
                 
                 # Parse the final diagnosis message
                 if messages:
@@ -105,7 +112,7 @@ class ClassificationTool(BaseTool):
                                 "confidence": confidence,
                                 "severity": "Unknown",  # Not provided by current model
                                 "description": f"Detected {disease_name} with {confidence:.2%} confidence",
-                                "attention_overlay": None,  # Not provided by current model
+                                "attention_overlay": attention_overlay_b64,  # Include captured attention overlay
                                 "raw_predictions": messages,  # Include all status messages
                                 "plant_context": {
                                     "plant_type": kwargs.get("plant_type"),
@@ -115,7 +122,7 @@ class ClassificationTool(BaseTool):
                                 }
                             }
                             
-                            logger.info(f"Classification successful: {disease_name} ({confidence:.2f})")
+                            logger.info(f"Classification successful: {disease_name} ({confidence:.2f}) with attention overlay")
                             return formatted_result
                 
                 return {"error": "Classification failed - could not parse diagnosis result"}

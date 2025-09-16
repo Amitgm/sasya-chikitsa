@@ -442,8 +442,24 @@ class DynamicPlanningWorkflow:
                     if isinstance(state_data, dict):
                         actual_state_data.update(state_data)
                 
+                # SPECIAL CASE: Stream attention overlay if classification completed
+                current_node = actual_state_data.get("current_node", "")
+                if current_node == "classifying" and "attention_overlay" in actual_state_data and actual_state_data.get("attention_overlay"):
+                    attention_overlay = actual_state_data["attention_overlay"]
+                    
+                    # Stream attention overlay as separate event (not saved in state persistence)
+                    yield {
+                        "type": "attention_overlay",
+                        "session_id": session_id,
+                        "data": {
+                            "attention_overlay": attention_overlay,
+                            "disease_name": actual_state_data.get("disease_name"),
+                            "confidence": actual_state_data.get("confidence")
+                        }
+                    }
+                    logger.info(f"🎯 Streamed attention overlay for session {session_id}")
+                
                 # Only track state transitions for logging purposes
-                current_node = actual_state_data.get("current_node")
                 if current_node and current_node != last_node:
                     last_node = current_node
                     logger.info(f"Refactored state transition: {previous_state.get('current_node', 'None')} → {current_node}")
