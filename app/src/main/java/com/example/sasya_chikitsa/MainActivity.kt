@@ -1,63 +1,57 @@
 package com.example.sasya_chikitsa
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.util.Base64
-import android.util.Log
 import android.text.SpannableString
+import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.text.style.ForegroundColorSpan
-import android.text.style.UnderlineSpan
 import android.text.style.StyleSpan
-import android.graphics.Typeface
+import android.text.style.UnderlineSpan
+import android.util.Base64
+import android.util.Log
 import android.view.View
-import android.view.ViewTreeObserver
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
-import android.widget.Spinner
-import androidx.appcompat.app.AlertDialog
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
-
-import com.example.sasya_chikitsa.network.request.ChatRequestData // Import data class
-import com.example.sasya_chikitsa.network.RetrofitClient // Import Retrofit client
 import com.example.sasya_chikitsa.config.ServerConfig
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.io.IOException
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.util.UUID
-import com.example.sasya_chikitsa.network.fetchChatStream
-import com.example.sasya_chikitsa.ui.theme.Sasya_ChikitsaTheme
-import org.json.JSONObject
-import org.json.JSONArray
-import org.json.JSONException
-import android.text.SpannableStringBuilder
-import android.widget.ArrayAdapter
+import com.example.sasya_chikitsa.network.RetrofitClient
+import com.example.sasya_chikitsa.network.request.ChatRequestData
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONException
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStreamReader
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
     private lateinit var imagePreview: ImageView
@@ -259,7 +253,7 @@ class MainActivity : ComponentActivity() {
 
         // Settings Button
         settingsBtn.setOnClickListener {
-                showSettingsDialog()
+            showSettingsDialog()
         }
 
         // Upload Button
@@ -2353,28 +2347,12 @@ class MainActivity : ComponentActivity() {
 
         val dialogView = layoutInflater.inflate(R.layout.dialog_agricultural_profile, null)
 
-        // Get dialog elements
-        val cropSpinner = dialogView.findViewById<Spinner>(R.id.cropSpinner)
-        val locationSpinner = dialogView.findViewById<Spinner>(R.id.locationSpinner)
-        val seasonSpinner = dialogView.findViewById<Spinner>(R.id.seasonSpinner)
-        val growthStageSpinner = dialogView.findViewById<Spinner>(R.id.growthStageSpinner)
-        val experienceSpinner = dialogView.findViewById<Spinner>(R.id.experienceSpinner)
+        // Get dialog elements (simplified to only state and farm size)
+        val stateSpinner = dialogView.findViewById<Spinner>(R.id.stateSpinner)
         val farmSizeSpinner = dialogView.findViewById<Spinner>(R.id.farmSizeSpinner)
 
         // Set up spinners with current values
-        setupProfileSpinner(cropSpinner, getCropOptions(), currentProfile["crop_type"])
-        setupProfileSpinner(locationSpinner, getLocationOptions(), currentProfile["location"])
-        setupProfileSpinner(seasonSpinner, getSeasonOptions(), currentProfile["season"])
-        setupProfileSpinner(
-            growthStageSpinner,
-            getGrowthStageOptions(),
-            currentProfile["growth_stage"]
-        )
-        setupProfileSpinner(
-            experienceSpinner,
-            getExperienceOptions(),
-            currentProfile["farming_experience"]
-        )
+        setupProfileSpinner(stateSpinner, getStateOptions(), currentProfile["state"])
         setupProfileSpinner(farmSizeSpinner, getFarmSizeOptions(), currentProfile["farm_size"])
 
         AlertDialog.Builder(this)
@@ -2383,17 +2361,13 @@ class MainActivity : ComponentActivity() {
             .setView(dialogView)
             .setPositiveButton("Save") { _, _ ->
                 val newProfile = mapOf(
-                    "crop_type" to cropSpinner.selectedItem.toString(),
-                    "location" to locationSpinner.selectedItem.toString(),
-                    "season" to seasonSpinner.selectedItem.toString(),
-                    "growth_stage" to growthStageSpinner.selectedItem.toString(),
-                    "farming_experience" to experienceSpinner.selectedItem.toString(),
+                    "state" to stateSpinner.selectedItem.toString(),
                     "farm_size" to farmSizeSpinner.selectedItem.toString()
                 )
                 saveAgriculturalProfile(newProfile)
                 Toast.makeText(
                     this,
-                    "Profile saved! Your advice will now be personalized.",
+                    "Profile saved! Your recommendations will be tailored to ${stateSpinner.selectedItem}.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -2436,7 +2410,7 @@ class MainActivity : ComponentActivity() {
         "Okra"
     )
 
-    private fun getLocationOptions() = listOf(
+    private fun getStateOptions() = listOf(
         "Tamil Nadu",
         "Karnataka",
         "Kerala",
@@ -2486,25 +2460,6 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    private fun updateServerStatusDisplay() {
-        val currentUrl = ServerConfig.getServerUrl(this)
-        val defaultUrls = ServerConfig.getDefaultUrls()
-        
-        // Find friendly name for current URL
-        val friendlyName = defaultUrls.find { it.second == currentUrl }?.first ?: "Custom"
-        val shortUrl = when {
-            currentUrl.contains("10.0.2.2") -> "Emulator"
-            currentUrl.contains("localhost") -> "Localhost"
-            currentUrl.contains("192.168") -> "Local Network"
-            currentUrl.contains("staging") -> "Staging"
-            currentUrl.contains("production") || currentUrl.contains("prod") -> "Production"
-            else -> currentUrl.replace("http://", "").replace("https://", "").take(20)
-        }
-        
-        serverStatus.text = "📡 Server: $shortUrl"
-        Log.d(TAG, "Server status updated: $friendlyName - $currentUrl")
-    }
-    
     private fun launchFSMMode() {
         try {
             // Use the FSMLauncher to launch the intelligent assistant
@@ -2515,37 +2470,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun showSettingsDialog() {
-        try {
-            val builder = AlertDialog.Builder(this)
-            builder.setTitle("⚙️ Settings")
-
-            val options = arrayOf(
-                "🌱 Agricultural Profile",
-                "🌐 Configure Server URL", 
-                "🗑️ Clear Conversation History",
-                "❌ Cancel"
-            )
-
-            // Use setSingleChoiceItems instead of setItems to avoid resource issues
-            builder.setSingleChoiceItems(options, -1) { dialog, which ->
-                dialog.dismiss() // Dismiss first to avoid conflicts
-                when (which) {
-                    0 -> showAgriculturalProfileDialog()
-                    1 -> showServerUrlDialog()
-                    2 -> showClearConversationsDialog()
-                    3 -> { } // Cancel - already dismissed
-                }
-            }
-
-            val dialog = builder.create()
-            dialog.show()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error showing settings dialog: ${e.message}", e)
-            // Fallback to simple menu
-            showSimpleSettingsMenu()
-        }
-    }
 
     private fun showSimpleSettingsMenu() {
         // Simple fallback menu without AlertDialog
@@ -2700,5 +2624,236 @@ class MainActivity : ComponentActivity() {
     private fun getCurrentSessionId(): String? {
         // Return the current session ID if available
         return sessionId
+    }
+    
+    /**
+     * Show server configuration dialog
+     */
+    private fun showSettingsDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_server_url, null)
+        val urlSpinner = dialogView.findViewById<Spinner>(R.id.urlSpinner)
+        val customUrlInput = dialogView.findViewById<EditText>(R.id.customUrlInput)
+
+        // Server options
+        val serverOptions = listOf(
+            "Local Development (localhost)",
+            "Production Server",
+            "Staging Server", 
+            "Custom URL"
+        )
+
+        // Setup spinner
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, serverOptions)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        urlSpinner.adapter = adapter
+
+        // Get current server configuration
+        val currentUrl = ServerConfig.getServerUrl(this)
+        val currentIndex = when {
+            currentUrl.contains("localhost") || currentUrl.contains("127.0.0.1") -> 0
+            currentUrl.contains("production") -> 1
+            currentUrl.contains("staging") -> 2
+            else -> 3
+        }
+        urlSpinner.setSelection(currentIndex)
+
+        // Show/hide custom URL input based on selection
+        urlSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                customUrlInput.visibility = if (position == 3) View.VISIBLE else View.GONE
+                if (position == 3) {
+                    customUrlInput.setText(currentUrl)
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("⚙️ Server Settings")
+            .setView(dialogView)
+            .setPositiveButton("Save") { _, _ ->
+                val selectedPosition = urlSpinner.selectedItemPosition
+                val newUrl = when (selectedPosition) {
+                    0 -> "http://localhost:8080/"
+                    1 -> "https://production-server.com/"
+                    2 -> "https://staging-server.com/"
+                    3 -> {
+                        var customUrl = customUrlInput.text.toString().trim()
+                        if (customUrl.isNotEmpty() && !customUrl.endsWith("/")) {
+                            customUrl += "/"
+                        }
+                        customUrl
+                    }
+                    else -> "http://localhost:8080/"
+                }
+
+                if (newUrl.isNotEmpty()) {
+                    ServerConfig.setServerUrl(this, newUrl)
+                    updateServerStatusDisplay()
+                    Toast.makeText(this, "Server configuration updated to: $newUrl", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this, "Please enter a valid URL", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNeutralButton("Profile") { _, _ ->
+                showAgriculturalProfileDialog()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+    
+    /**
+     * Update the server status indicator in the header
+     */
+    private fun updateServerStatusDisplay() {
+        val stateIndicator = findViewById<TextView>(R.id.stateIndicator)
+        val currentUrl = ServerConfig.getServerUrl(this)
+        
+        // Update status indicator based on server configuration
+        when {
+            currentUrl.contains("localhost") || currentUrl.contains("127.0.0.1") -> {
+                stateIndicator.text = "●"
+                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
+                stateIndicator.contentDescription = "Local Development Server"
+            }
+            currentUrl.contains("production") -> {
+                stateIndicator.text = "●"
+                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
+                stateIndicator.contentDescription = "Production Server"
+            }
+            currentUrl.contains("staging") -> {
+                stateIndicator.text = "●"
+                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_blue_light))
+                stateIndicator.contentDescription = "Staging Server"
+            }
+            else -> {
+                stateIndicator.text = "●"
+                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
+                stateIndicator.contentDescription = "Custom Server"
+            }
+        }
+    }
+    
+    /**
+     * Show dedicated server configuration dialog
+     */
+    private fun showServerSettings() {
+        try {
+            val dialogView = layoutInflater.inflate(R.layout.dialog_server_url, null)
+            val urlSpinner = dialogView.findViewById<Spinner>(R.id.urlSpinner)
+            val customUrlInput = dialogView.findViewById<EditText>(R.id.customUrlInput)
+
+            // Get available server options from ServerConfig
+            val defaultUrls = ServerConfig.getDefaultUrls()
+            val serverOptions = defaultUrls.map { it.first }
+
+            // Setup spinner
+            val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, serverOptions)
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            urlSpinner.adapter = adapter
+
+            // Get current server configuration and set selection
+            val currentUrl = ServerConfig.getServerUrl(this)
+            val currentIndex = defaultUrls.indexOfFirst { it.second == currentUrl }
+                .takeIf { it >= 0 } ?: (defaultUrls.size - 1) // Default to "Custom URL" if not found
+
+            urlSpinner.setSelection(currentIndex)
+
+            // Show/hide custom URL input based on selection
+            urlSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    val isCustom = position == defaultUrls.size - 1 // Last option is "Custom URL"
+                    customUrlInput.visibility = if (isCustom) View.VISIBLE else View.GONE
+                    
+                    if (isCustom) {
+                        customUrlInput.setText(currentUrl)
+                        customUrlInput.requestFocus()
+                    }
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+
+            // Trigger initial selection to show/hide custom input
+            urlSpinner.onItemSelectedListener?.onItemSelected(urlSpinner, null, currentIndex, 0)
+
+            AlertDialog.Builder(this)
+                .setTitle("🌐 Server Configuration")
+                .setMessage("Select your server endpoint for the Sasya Chikitsa AI assistant:")
+                .setView(dialogView)
+                .setPositiveButton("Connect") { _, _ ->
+                    val selectedPosition = urlSpinner.selectedItemPosition
+                    val newUrl = if (selectedPosition == defaultUrls.size - 1) {
+                        // Custom URL selected
+                        var customUrl = customUrlInput.text.toString().trim()
+                        if (customUrl.isNotEmpty() && !customUrl.endsWith("/")) {
+                            customUrl += "/"
+                        }
+                        customUrl
+                    } else {
+                        // Preset URL selected
+                        defaultUrls[selectedPosition].second
+                    }
+
+                    if (newUrl.isNotEmpty() && ServerConfig.isValidUrl(newUrl)) {
+                        ServerConfig.setServerUrl(this, newUrl)
+                        updateServerStatusDisplay()
+                        
+                        val serverName = if (selectedPosition == defaultUrls.size - 1) "Custom Server" else defaultUrls[selectedPosition].first
+                        Toast.makeText(this, "✅ Connected to $serverName\n$newUrl", Toast.LENGTH_LONG).show()
+                        
+                        Log.d(TAG, "Server URL updated to: $newUrl")
+                    } else {
+                        Toast.makeText(this, "❌ Please enter a valid URL (e.g., http://192.168.1.100:8080/)", Toast.LENGTH_LONG).show()
+                    }
+                }
+                .setNeutralButton("Test Connection") { _, _ ->
+                    val selectedPosition = urlSpinner.selectedItemPosition
+                    val testUrl = if (selectedPosition == defaultUrls.size - 1) {
+                        customUrlInput.text.toString().trim()
+                    } else {
+                        defaultUrls[selectedPosition].second
+                    }
+                    testServerConnection(testUrl)
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+                
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing server settings dialog: ${e.message}", e)
+            Toast.makeText(this, "Failed to show server settings: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * Test server connection
+     */
+    private fun testServerConnection(url: String) {
+        if (url.isEmpty() || !ServerConfig.isValidUrl(url)) {
+            Toast.makeText(this, "❌ Invalid URL format", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        Toast.makeText(this, "🔄 Testing connection to $url...", Toast.LENGTH_SHORT).show()
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Create a test request to check server connectivity
+                val testUrl = if (!url.endsWith("/")) "$url/" else url
+                val response = RetrofitClient.getApiService(testUrl).testConnection()
+                
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        Toast.makeText(this@MainActivity, "✅ Server connection successful!", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(this@MainActivity, "⚠️ Server responded but may not be fully ready (${response.code()})", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "❌ Connection failed: ${e.message}", Toast.LENGTH_LONG).show()
+                    Log.e(TAG, "Server connection test failed for $url", e)
+                }
+            }
+        }
     }
 }

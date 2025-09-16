@@ -14,11 +14,14 @@ import android.view.View
 import android.widget.*
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.cardview.widget.CardView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.sasya_chikitsa.config.ServerConfig
 import com.example.sasya_chikitsa.fsm.*
+import com.example.sasya_chikitsa.network.RetrofitClient
 import com.example.sasya_chikitsa.models.MessageFeedback
 import com.example.sasya_chikitsa.models.FeedbackType
 import com.example.sasya_chikitsa.models.FeedbackManager
@@ -107,7 +110,7 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         // Initialize chat adapter
         chatAdapter = ChatAdapter(
             onFollowUpClick = { followUpText ->
-                handleFollowUpClick(followUpText)
+            handleFollowUpClick(followUpText)
             },
             onThumbsUpClick = { chatMessage ->
                 handleThumbsUpFeedback(chatMessage)
@@ -138,6 +141,9 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         imagePreview = findViewById(R.id.imagePreview)
         imageFileName = findViewById(R.id.imageFileName)
         removeImageBtn = findViewById(R.id.removeImageBtn)
+        
+        // Initialize server status display
+        updateServerStatusDisplay()
     }
     
     private fun setupClickListeners() {
@@ -445,9 +451,161 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
     
+    /**
+     * Show dedicated server configuration dialog
+     */
     private fun showServerSettings() {
-        // Open server settings (placeholder for now)
-        Toast.makeText(this, "Server Settings - Coming Soon", Toast.LENGTH_SHORT).show()
+        try {
+            val dialogView = layoutInflater.inflate(R.layout.dialog_server_url, null)
+            val urlSpinner = dialogView.findViewById<Spinner>(R.id.urlSpinner)
+            val customUrlInput = dialogView.findViewById<EditText>(R.id.customUrlInput)
+
+            // Get available server options from ServerConfig
+            val defaultUrls = ServerConfig.getDefaultUrls()
+            val serverOptions = defaultUrls.map { it.first }
+
+            // Setup spinner
+            val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, serverOptions)
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            urlSpinner.adapter = adapter
+
+            // Get current server configuration and set selection
+            val currentUrl = ServerConfig.getServerUrl(this)
+            val currentIndex = defaultUrls.indexOfFirst { it.second == currentUrl }
+                .takeIf { it >= 0 } ?: (defaultUrls.size - 1) // Default to "Custom URL" if not found
+
+            urlSpinner.setSelection(currentIndex)
+
+            // Show/hide custom URL input based on selection
+            urlSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    val isCustom = position == defaultUrls.size - 1 // Last option is "Custom URL"
+                    customUrlInput.visibility = if (isCustom) View.VISIBLE else View.GONE
+                    
+                    if (isCustom) {
+                        customUrlInput.setText(currentUrl)
+                        customUrlInput.requestFocus()
+                    }
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+
+            // Trigger initial selection to show/hide custom input
+            urlSpinner.onItemSelectedListener?.onItemSelected(urlSpinner, null, currentIndex, 0)
+
+            AlertDialog.Builder(this)
+                .setTitle("🌐 Server Configuration")
+                .setMessage("Select your server endpoint for the Sasya Chikitsa AI assistant:")
+                .setView(dialogView)
+                .setPositiveButton("Connect") { _, _ ->
+                    val selectedPosition = urlSpinner.selectedItemPosition
+                    val newUrl = if (selectedPosition == defaultUrls.size - 1) {
+                        // Custom URL selected
+                        var customUrl = customUrlInput.text.toString().trim()
+                        if (customUrl.isNotEmpty() && !customUrl.endsWith("/")) {
+                            customUrl += "/"
+                        }
+                        customUrl
+                    } else {
+                        // Preset URL selected
+                        defaultUrls[selectedPosition].second
+                    }
+
+                    if (newUrl.isNotEmpty() && ServerConfig.isValidUrl(newUrl)) {
+                        ServerConfig.setServerUrl(this, newUrl)
+                        updateServerStatusDisplay()
+                        
+                        val serverName = if (selectedPosition == defaultUrls.size - 1) "Custom Server" else defaultUrls[selectedPosition].first
+                        Toast.makeText(this, "✅ Connected to $serverName\n$newUrl", Toast.LENGTH_LONG).show()
+                        
+                        Log.d(TAG, "Server URL updated to: $newUrl")
+                        
+                        // Refresh FSM client with new URL
+                        FSMRetrofitClient.initialize(this)
+                    } else {
+                        Toast.makeText(this, "❌ Please enter a valid URL (e.g., http://192.168.1.100:8080/)", Toast.LENGTH_LONG).show()
+                    }
+                }
+                .setNeutralButton("Test Connection") { _, _ ->
+                    val selectedPosition = urlSpinner.selectedItemPosition
+                    val testUrl = if (selectedPosition == defaultUrls.size - 1) {
+                        customUrlInput.text.toString().trim()
+                    } else {
+                        defaultUrls[selectedPosition].second
+                    }
+                    testServerConnection(testUrl)
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+                
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing server settings dialog: ${e.message}", e)
+            Toast.makeText(this, "Failed to show server settings: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * Test server connection
+     */
+    private fun testServerConnection(url: String) {
+        if (url.isEmpty() || !ServerConfig.isValidUrl(url)) {
+            Toast.makeText(this, "❌ Invalid URL format", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        Toast.makeText(this, "🔄 Testing connection to $url...", Toast.LENGTH_SHORT).show()
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Create a test request to check server connectivity
+                val testUrl = if (!url.endsWith("/")) "$url/" else url
+                val response = RetrofitClient.getApiService(testUrl).testConnection()
+                
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        Toast.makeText(this@MainActivityFSM, "✅ Server connection successful!", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(this@MainActivityFSM, "⚠️ Server responded but may not be fully ready (${response.code()})", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivityFSM, "❌ Connection failed: ${e.message}", Toast.LENGTH_LONG).show()
+                    Log.e(TAG, "Server connection test failed for $url", e)
+                }
+            }
+        }
+    }
+    
+    /**
+     * Update the server status indicator in the header
+     */
+    private fun updateServerStatusDisplay() {
+        val currentUrl = ServerConfig.getServerUrl(this)
+        
+        // Update status indicator based on server configuration
+        when {
+            currentUrl.contains("localhost") || currentUrl.contains("127.0.0.1") -> {
+                stateIndicator.text = "●"
+                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
+                stateIndicator.contentDescription = "Local Development Server"
+            }
+            currentUrl.contains("production") -> {
+                stateIndicator.text = "●"
+                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
+                stateIndicator.contentDescription = "Production Server"
+            }
+            currentUrl.contains("staging") -> {
+                stateIndicator.text = "●"
+                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_blue_light))
+                stateIndicator.contentDescription = "Staging Server"
+            }
+            else -> {
+                stateIndicator.text = "●"
+                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
+                stateIndicator.contentDescription = "Custom Server"
+            }
+        }
     }
     
     // Utility methods
