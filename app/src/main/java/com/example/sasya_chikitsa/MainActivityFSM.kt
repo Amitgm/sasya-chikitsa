@@ -471,6 +471,30 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
         }
     }
     
+    override fun onAttentionOverlay(overlayData: AttentionOverlayData) {
+        Log.d(TAG, "🎯 Received attention overlay from ${overlayData.sourceNode}: disease=${overlayData.diseaseName}, confidence=${overlayData.confidence}")
+        runOnUiThread {
+            if (currentSessionState.messages.isNotEmpty() && 
+                !currentSessionState.messages.last().isUser && 
+                overlayData.attentionOverlay != null) {
+                
+                // Add attention overlay to the last assistant message
+                val lastMessage = currentSessionState.messages.last()
+                val updatedMessage = lastMessage.copy(
+                    attentionOverlayBase64 = overlayData.attentionOverlay,
+                    diseaseName = overlayData.diseaseName,
+                    confidence = overlayData.confidence
+                )
+                
+                // Update message and notify adapter
+                currentSessionState.messages[currentSessionState.messages.size - 1] = updatedMessage
+                chatAdapter.updateLastMessageWithOverlay(updatedMessage)
+                
+                Log.d(TAG, "✅ Added attention overlay to last message")
+            }
+        }
+    }
+    
     override fun onError(error: String) {
         Log.e(TAG, "Stream error: $error")
         runOnUiThread {

@@ -88,6 +88,13 @@ class ChatAdapter(
         }
     }
     
+    fun updateLastMessageWithOverlay(updatedMessage: ChatMessage) {
+        if (messages.isNotEmpty() && !messages.last().isUser) {
+            messages[messages.size - 1] = updatedMessage
+            notifyItemChanged(messages.size - 1)
+        }
+    }
+    
     fun clear() {
         messages.clear()
         notifyDataSetChanged()
@@ -134,6 +141,9 @@ class ChatAdapter(
         private val followUpChipGroup: ChipGroup = itemView.findViewById(R.id.followUpChipGroup)
         private val thumbsUpButton: ImageButton = itemView.findViewById(R.id.thumbsUpButton)
         private val thumbsDownButton: ImageButton = itemView.findViewById(R.id.thumbsDownButton)
+        private val attentionOverlayContainer: LinearLayout = itemView.findViewById(R.id.attentionOverlayContainer)
+        private val attentionOverlayImage: ImageView = itemView.findViewById(R.id.attentionOverlayImage)
+        private val overlayDescription: TextView = itemView.findViewById(R.id.overlayDescription)
         
         fun bind(message: ChatMessage) {
             messageText.text = message.text
@@ -238,6 +248,31 @@ class ChatAdapter(
                 
                 // Trigger callback
                 onThumbsDownClick(message)
+            }
+            
+            // Handle attention overlay display
+            if (message.attentionOverlayBase64 != null) {
+                attentionOverlayContainer.visibility = View.VISIBLE
+                
+                // Update description with disease info
+                val description = if (message.diseaseName != null && message.confidence != null) {
+                    "Detected: ${message.diseaseName} (${String.format("%.1f", message.confidence * 100)}% confidence)"
+                } else {
+                    "Original image vs AI attention heatmap"
+                }
+                overlayDescription.text = description
+                
+                // Decode and display the base64 attention overlay image
+                try {
+                    val imageBytes = android.util.Base64.decode(message.attentionOverlayBase64, android.util.Base64.DEFAULT)
+                    val bitmap = android.graphics.BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                    attentionOverlayImage.setImageBitmap(bitmap)
+                } catch (e: Exception) {
+                    Log.e("ChatAdapter", "Error decoding attention overlay image", e)
+                    attentionOverlayContainer.visibility = View.GONE
+                }
+            } else {
+                attentionOverlayContainer.visibility = View.GONE
             }
         }
     }
