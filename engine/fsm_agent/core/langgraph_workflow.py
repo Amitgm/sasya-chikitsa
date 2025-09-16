@@ -231,7 +231,7 @@ class DynamicPlanningWorkflow:
                 set_error(state, f"Error in {node_name} node: {str(e)}")
                 state["next_action"] = "error"
                 return state
-        
+    
         return node_executor
     
     # ==================== ROUTING FUNCTIONS ====================
@@ -543,6 +543,8 @@ class DynamicPlanningWorkflow:
             
             # Save the final complete state (only once, after workflow completes)
             if final_state:
+                # FINAL CLEANUP: Ensure no duplicates before saving final state
+                final_state = self.session_manager.deduplicate_messages(final_state)
                 self.session_manager.save_state(final_state)
                 logger.info(f"💾 Saved final workflow state for session {session_id}")
             
