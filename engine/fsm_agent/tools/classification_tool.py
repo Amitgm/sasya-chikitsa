@@ -75,57 +75,41 @@ class ClassificationTool(BaseTool):
             if not self.classifier:
                 return {"error": "CNN classifier not available"}
             
-            # Run classification (it's a generator that yields status messages)
+            # Run classification using the new complete method
             try:
-                classification_generator = self.classifier.predict_leaf_classification(
+                input_context = f"Plant: {kwargs.get('plant_type', 'unknown')}, Location: {kwargs.get('location', 'unknown')}, Season: {kwargs.get('season', 'unknown')}"
+                
+                # Use the new complete method that returns all results at once
+                result = self.classifier.predict_leaf_classification_complete(
                     image_bytes=kwargs["image_b64"],
-                    input_text=f"Plant: {kwargs.get('plant_type', 'unknown')}, Location: {kwargs.get('location', 'unknown')}, Season: {kwargs.get('season', 'unknown')}"
+                    input_text=input_context
                 )
                 
-                # Consume all yielded messages to get final result and extract attention overlay
-                messages = []
-                attention_overlay_b64 = None
+                # Check for errors from the classifier
+                if result.get("error"):
+                    return {"error": result["error"]}
                 
-                for message in classification_generator:
-                    messages.append(message)
+                # Format the results for the workflow
+                if result.get("success"):
+                    formatted_result = {
+                        "disease_name": result.get("disease_name"),
+                        "confidence": result.get("confidence"),
+                        "severity": "Unknown",  # Not provided by current model
+                        "description": f"Detected {result.get('disease_name')} with {result.get('confidence', 0):.2%} confidence",
+                        "attention_overlay": result.get("attention_overlay"),  # Direct from classifier
+                        "raw_class_label": result.get("raw_class_label"),
+                        "plant_context": {
+                            "plant_type": kwargs.get("plant_type"),
+                            "location": kwargs.get("location"),
+                            "season": kwargs.get("season"),
+                            "growth_stage": kwargs.get("growth_stage")
+                        }
+                    }
                     
-                    # Check for attention overlay data
-                    if "ATTENTION_OVERLAY_BASE64:" in message:
-                        attention_overlay_b64 = message.split("ATTENTION_OVERLAY_BASE64:")[1].strip()
-                        logger.info("Attention overlay captured successfully")
+                    logger.info(f"Classification successful: {result.get('disease_name')} ({result.get('confidence', 0):.2f}) with attention overlay")
+                    return formatted_result
                 
-                # Parse the final diagnosis message
-                if messages:
-                    final_message = messages[-1]  # Last message should contain diagnosis
-                    
-                    # Extract disease name and confidence from final message
-                    # Format: "Diagnosis Complete! Health Status: {disease} with confidence {confidence}"
-                    if "Health Status:" in final_message and "confidence" in final_message:
-                        import re
-                        match = re.search(r'Health Status: (.+?) with confidence ([0-9.]+)', final_message)
-                        if match:
-                            disease_name = match.group(1).strip()
-                            confidence = float(match.group(2))
-                            
-                            formatted_result = {
-                                "disease_name": disease_name,
-                                "confidence": confidence,
-                                "severity": "Unknown",  # Not provided by current model
-                                "description": f"Detected {disease_name} with {confidence:.2%} confidence",
-                                "attention_overlay": attention_overlay_b64,  # Include captured attention overlay
-                                "raw_predictions": messages,  # Include all status messages
-                                "plant_context": {
-                                    "plant_type": kwargs.get("plant_type"),
-                                    "location": kwargs.get("location"),
-                                    "season": kwargs.get("season"),
-                                    "growth_stage": kwargs.get("growth_stage")
-                                }
-                            }
-                            
-                            logger.info(f"Classification successful: {disease_name} ({confidence:.2f}) with attention overlay")
-                            return formatted_result
-                
-                return {"error": "Classification failed - could not parse diagnosis result"}
+                return {"error": "Classification failed - unexpected result format"}
                 
             except Exception as e:
                 return {"error": f"Classification failed: {str(e)}"}

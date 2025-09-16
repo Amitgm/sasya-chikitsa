@@ -442,22 +442,36 @@ class DynamicPlanningWorkflow:
                     if isinstance(state_data, dict):
                         actual_state_data.update(state_data)
                 
-                # SPECIAL CASE: Stream attention overlay if classification completed
-                current_node = actual_state_data.get("current_node", "")
-                if current_node == "classifying" and "attention_overlay" in actual_state_data and actual_state_data.get("attention_overlay"):
+                # GENERIC: Stream attention overlay if any node produces one
+                if "attention_overlay" in actual_state_data and actual_state_data.get("attention_overlay"):
                     attention_overlay = actual_state_data["attention_overlay"]
+                    current_node = actual_state_data.get("current_node", "")
                     
-                    # Stream attention overlay as separate event (not saved in state persistence)
-                    yield {
-                        "type": "attention_overlay",
-                        "session_id": session_id,
-                        "data": {
-                            "attention_overlay": attention_overlay,
-                            "disease_name": actual_state_data.get("disease_name"),
-                            "confidence": actual_state_data.get("confidence")
+                    # Prevent duplicate streaming using overlay content hash
+                    overlay_hash = hash(attention_overlay[:100] + current_node)  # Hash first 100 chars + node
+                    overlay_hash_key = f"_overlay_hashes_{session_id}"
+                    streamed_overlays = getattr(self, overlay_hash_key, set())
+                    
+                    if overlay_hash not in streamed_overlays:
+                        # Stream attention overlay as separate event (not saved in state persistence)
+                        yield {
+                            "type": "attention_overlay",
+                            "session_id": session_id,
+                            "data": {
+                                "attention_overlay": attention_overlay,
+                                "disease_name": actual_state_data.get("disease_name"),
+                                "confidence": actual_state_data.get("confidence"),
+                                "source_node": current_node
+                            }
                         }
-                    }
-                    logger.info(f"🎯 Streamed attention overlay for session {session_id}")
+                        
+                        # Track streamed overlay to prevent duplicates
+                        streamed_overlays.add(overlay_hash)
+                        setattr(self, overlay_hash_key, streamed_overlays)
+                        
+                        logger.info(f"🎯 Streamed attention overlay from node '{current_node}' for session {session_id}")
+                    else:
+                        logger.debug(f"🔄 Skipped duplicate attention overlay from node '{current_node}' for session {session_id}")
                 
                 # Only track state transitions for logging purposes
                 if current_node and current_node != last_node:
