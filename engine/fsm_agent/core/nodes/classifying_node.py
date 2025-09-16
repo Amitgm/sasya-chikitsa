@@ -129,6 +129,12 @@ Your plant has: **{farmer_disease_name}**
         
         # Store response for streaming and add to messages
         state["assistant_response"] = response
+        
+        # GENERIC ARCHITECTURAL FIX: Set streaming metadata for modular duplicate prevention
+        state["response_status"] = "final"  # This is the enhanced, final version ready for streaming
+        state["stream_immediately"] = True  # Node indicates immediate streaming needed
+        state["stream_in_state_update"] = False  # Don't include in state_update events
+        
         add_message_to_state(state, "assistant", response)
         
         # Set next action based on user intent

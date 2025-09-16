@@ -1,4 +1,5 @@
 # import pandas as pd
+import chromadb
 from langchain_chroma import Chroma
 from langchain_core.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
@@ -18,7 +19,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class ollama_rag:
+class OllamaRag:
     """
     Enhanced RAG system with pre-initialized ChromaDB collections for multiple plant types.
     

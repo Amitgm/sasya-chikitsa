@@ -85,6 +85,11 @@ class WorkflowState(TypedDict):
     
     # Assistant Responses (for streaming)
     assistant_response: NotRequired[Optional[str]]
+    
+    # Generic Streaming Control Metadata (Architecture-Friendly)
+    response_status: NotRequired[Optional[str]]  # "final", "intermediate", "state_only"
+    stream_immediately: NotRequired[Optional[bool]]  # Node-controlled immediate streaming
+    stream_in_state_update: NotRequired[Optional[bool]]  # Include in state_update events
 
 
 def create_initial_state(session_id: str, user_message: str, user_image: Optional[str] = None, context: Optional[Dict[str, Any]] = None) -> WorkflowState:

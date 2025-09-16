@@ -222,16 +222,19 @@ async def chat_stream(request: ChatRequest):
                 ):
                     chunk_type = chunk.get("type", "unknown")
                     
-                    # Remove message streaming - all content is in state_update to prevent duplication
+                    # FIXED: Support both state_update AND assistant_response events for modular architecture
                     
                     if chunk_type == "state_update":
-                        # Stream ONLY clean state updates (no duplication, no separate events)
+                        # Stream clean state updates (metadata, progress, etc.)
                         state_data = chunk.get("data", {})
                         if isinstance(state_data, dict) and state_data:
-                            # Single clean state update - contains all necessary information
                             yield f"event: state_update\ndata: {json.dumps(state_data, cls=CustomJSONEncoder)}\n\n"
                     
-                    # Remove all duplicate streaming events - everything is in state_update now
+                    elif chunk_type == "assistant_response":
+                        # FIXED: Stream dedicated assistant responses (final answers for users)
+                        response_data = chunk.get("data", {})
+                        if isinstance(response_data, dict) and response_data:
+                            yield f"event: assistant_response\ndata: {json.dumps(response_data, cls=CustomJSONEncoder)}\n\n"
                     
                     elif chunk_type == "error":
                         # Stream error

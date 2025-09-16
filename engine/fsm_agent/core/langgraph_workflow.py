@@ -195,13 +195,13 @@ class DynamicPlanningWorkflow:
             }
         )
         
-        # Add conditional edges for completed node to handle session ending
+        # Add conditional edges for completed node to handle session ending  
         workflow.add_conditional_edges(
             "completed",
             self._route_from_completed,
             {
                 "session_end": "session_end",
-                "completed": END  # Stay completed if not ending session
+                "completed": END  # FIXED: End current workflow, session stays active at FSMAgent level
             }
         )
         
@@ -230,9 +230,8 @@ class DynamicPlanningWorkflow:
                 logger.error(f"Error executing node {node_name}: {str(e)}", exc_info=True)
                 set_error(state, f"Error in {node_name} node: {str(e)}")
                 state["next_action"] = "error"
+                return state
         
-            return state
-    
         return node_executor
     
     # ==================== ROUTING FUNCTIONS ====================
@@ -335,11 +334,12 @@ class DynamicPlanningWorkflow:
         # Only specific actions should start new workflow nodes
         routing_map = {
             "restart": "initial",
-            "classify": "classifying", 
+            "classify": "classifying",
             "prescribe": "prescribing",
             "show_vendors": "show_vendors",
             "session_end": "session_end",  # Only explicit user goodbye ends session
-            "error": "error"
+            "error": "error",
+            "await_user_input": "completed"  # FIXED: Direct responses should go to completed but preserve the answer
         }
         
         # Check if it's a mapped action that starts a new workflow node
@@ -354,22 +354,15 @@ class DynamicPlanningWorkflow:
             return "completed"
     
     async def _route_from_completed(self, state: WorkflowState) -> str:
-        """Route from completed node"""
-        # Check if user wants to end the session
-        user_message = state.get("user_message", "").lower()
+        """Route from completed node - FIXED to end workflow but keep session active"""
+        # FIXED: Don't check goodbye intent in original message - that's wrong!
+        # The completed node should end the current workflow execution.
+        # Session continuity and goodbye detection should happen when user sends
+        # a NEW message, not when checking the original workflow request.
         
-        # Keywords that indicate session ending intent
-        session_end_keywords = [
-            "bye", "goodbye", "farewell", "thanks for everything", "thank you for everything", 
-            "i'm done", "finished", "all done", "exit", "quit", 
-            "end session", "stop", "that's all", "no more", "see you later"
-        ]
-        
-        # If user expressed goodbye intent, end the session
-        if any(keyword in user_message for keyword in session_end_keywords):
-            return "session_end"
-        
-        # Otherwise, stay in completed state (workflow ends but session remains active)
+        # Always end the current workflow execution, but session stays active
+        # The FSMAgent will handle starting new workflows for subsequent user messages
+        logger.info("🔄 Completed workflow execution, ending current workflow (session stays active)")
         return "completed"
     
     # ==================== PUBLIC METHODS ====================
@@ -484,16 +477,56 @@ class DynamicPlanningWorkflow:
                             "data": filtered_delta
                         }
                 
+                # CRITICAL FIX: Only stream NEW assistant_response, not old accumulated data
+                current_node = actual_state_data.get("current_node", "")
+                previous_node = actual_state_data.get("previous_node", "")
+                logger.debug(f"🔍 DEBUG: actual_state_data keys: {list(actual_state_data.keys())}")
+                
                 # Check for assistant_response that needs immediate streaming
                 if "assistant_response" in actual_state_data:
                     assistant_response = actual_state_data["assistant_response"]
+                    logger.info(f"🔍 FOUND assistant_response: '{assistant_response[:50]}...'" if assistant_response else "🔍 FOUND empty assistant_response")
                     if assistant_response and assistant_response.strip():
-                        logger.info(f"🔄 Streaming assistant response for session {session_id}")
-                        yield {
-                            "type": "assistant_response",
-                            "session_id": session_id,
-                            "data": {"assistant_response": assistant_response}
-                        }
+                        # GENERIC ARCHITECTURAL FIX: Node-controlled streaming
+                        should_stream = True
+                        
+                        # 1. Generic duplicate prevention using robust content hashing
+                        response_hash = hash(assistant_response)  # Full content hash
+                        session_hash_key = f"_response_hashes_{session_id}"
+                        recent_hashes = getattr(self, session_hash_key, [])
+                        
+                        if response_hash in recent_hashes:
+                            logger.debug(f"🚫 Skipping duplicate response (content hash match) for session {session_id}")
+                            should_stream = False
+                        
+                        # 2. Node-controlled streaming: Nodes can prevent immediate streaming
+                        stream_immediately = actual_state_data.get("stream_immediately", True)
+                        if not stream_immediately:
+                            logger.debug(f"🚫 Node requested delayed streaming for session {session_id} from {current_node}")
+                            should_stream = False
+                        
+                        # 3. Stream control based on response finality
+                        response_status = actual_state_data.get("response_status", "final")
+                        if response_status == "intermediate":
+                            logger.debug(f"🚫 Skipping intermediate response for session {session_id} from {current_node}")
+                            should_stream = False
+                        
+                        if should_stream:
+                            logger.info(f"🔄 Streaming assistant response for session {session_id} from {current_node}")
+                            # Update hash tracking (keep last 3 hashes to prevent immediate duplicates)
+                            recent_hashes.append(response_hash)
+                            if len(recent_hashes) > 3:
+                                recent_hashes.pop(0)
+                            setattr(self, session_hash_key, recent_hashes)
+                            
+                            logger.info(f"🚀 YIELDING assistant_response: {assistant_response[:30]}...")
+                            yield {
+                                "type": "assistant_response", 
+                                "session_id": session_id,
+                                "data": {"assistant_response": assistant_response}
+                            }
+                        else:
+                            logger.debug(f"🚫 Skipped streaming response for session {session_id} from {current_node}")
                 
                 # Only track state transitions for logging purposes
                 current_node = actual_state_data.get("current_node")
@@ -550,6 +583,18 @@ class DynamicPlanningWorkflow:
         # 2. Remove attention_overlay (auto-streaming issue)
         if "attention_overlay" in filtered:
             del filtered["attention_overlay"]
+            
+        # GENERIC ARCHITECTURAL FIX: Remove assistant_response from state_update based on node metadata
+        # This prevents duplicate streaming in state_update events when dedicated streaming exists
+        if "assistant_response" in filtered:
+            # Generic approach: Check if node marked response as "stream_in_state_update"
+            stream_in_state = chunk.get("stream_in_state_update", False)
+            response_status = chunk.get("response_status", "final")
+            
+            # Only keep in state_update if explicitly requested or it's marked for state streaming
+            if not stream_in_state and response_status != "state_only":
+                logger.debug("Removing assistant_response from state_update (handled by dedicated streaming)")
+                del filtered["assistant_response"]
         
         # 3. Remove messages (handled separately to prevent duplication)    
         if "messages" in filtered:

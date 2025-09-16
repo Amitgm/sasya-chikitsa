@@ -109,6 +109,22 @@ class FSMStreamHandler {
                         }
                     }
                     
+                    "assistant_response" -> {
+                        // FIXED: Handle new assistant_response events from modular architecture
+                        try {
+                            val responseData = gson.fromJson(data, AssistantResponseData::class.java)
+                            responseData.assistant_response?.let { message ->
+                                if (message.isNotBlank()) {
+                                    callback.onMessage(message)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // Fallback: treat as plain text if JSON parsing fails
+                            Log.w(TAG, "Failed to parse assistant_response as JSON, treating as plain text: ${e.message}")
+                            callback.onMessage(data)
+                        }
+                    }
+                    
                     "message" -> {
                         callback.onMessage(data)
                     }

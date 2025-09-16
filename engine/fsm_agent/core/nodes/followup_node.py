@@ -38,6 +38,11 @@ class FollowupNode(BaseNode):
         self.update_node_state(state)
         
         try:
+            # FIXED: Check for goodbye intent FIRST in follow-up conversations
+            if await self._detect_goodbye_intent(state):
+                logger.info("👋 Goodbye intent detected in followup - routing to session_end")
+                state["next_action"] = "session_end"
+                return state
             # CRITICAL FIX: Check if we just completed a workflow step to prevent infinite loops
             previous_node = state.get("previous_node", "")
             classification_results = state.get("classification_results")
@@ -131,6 +136,11 @@ class FollowupNode(BaseNode):
                     # Store response for streaming
                     state["assistant_response"] = classification_msg
                     
+                    # GENERIC ARCHITECTURAL FIX: Set streaming metadata for modular duplicate prevention
+                    state["response_status"] = "final"  # This is the enhanced, final version ready for streaming
+                    state["stream_immediately"] = True  # Node indicates immediate streaming needed
+                    state["stream_in_state_update"] = False  # Don't include in state_update events
+                    
                     # Complete the classification within followup
                     state["next_action"] = "await_user_input"
                     state["requires_user_input"] = True
@@ -201,15 +211,20 @@ class FollowupNode(BaseNode):
     
     def _handle_direct_response_action(self, state: WorkflowState, followup_intent: Dict[str, Any]) -> None:
         """Handle direct response action"""
-        # LLM can handle this directly - use the generated response
+        # GENERIC ARCHITECTURAL FIX: Use metadata to control streaming behavior
         llm_response = followup_intent.get("response", "I'm here to help! What would you like to know?")
-        add_message_to_state(state, "assistant", llm_response)
         
-        # Store the response for streaming (important for immediate streaming)
-        state["assistant_response"] = llm_response
+        # Clear any previous assistant_response to prevent old data accumulation
+        state["assistant_response"] = llm_response.strip()
         
-        # Don't set next_action to "complete" as it would overwrite our response
-        # Instead, stay in followup to await further user input
+        # GENERIC: Mark response as intermediate - let completed node enhance it
+        state["response_status"] = "intermediate"  # Workflow will skip streaming this
+        state["stream_immediately"] = False  # Let completed node handle final streaming
+        
+        # Add clean response to conversation history
+        add_message_to_state(state, "assistant", llm_response.strip())
+        
+        # Route to completion to show enhanced response
         state["next_action"] = "await_user_input"
         state["requires_user_input"] = True
     

@@ -152,6 +152,13 @@ class SessionManager:
             )
             
             if not duplicate_found:
+                # CRITICAL FIX: Clear old assistant_response ONLY if workflow is completed
+                # This prevents old completed responses from being streamed with new requests
+                current_node = existing_state.get("current_node", "")
+                if "assistant_response" in existing_state and current_node == "completed":
+                    logger.info(f"🧹 Clearing old completed assistant_response for session {session_id}")
+                    existing_state["assistant_response"] = ""
+                
                 # Add user message to conversation history
                 existing_state["messages"].append({
                     "role": "user",
@@ -164,6 +171,11 @@ class SessionManager:
             else:
                 logger.warning(f"⚠️ Duplicate user message detected for session {session_id}, skipping addition")
                 logger.warning(f"   Message: '{user_message[:50]}...'")
+                
+                # For duplicates, only clear if in completed state
+                current_node = existing_state.get("current_node", "")
+                if "assistant_response" in existing_state and current_node == "completed":
+                    existing_state["assistant_response"] = ""
             
             return existing_state
         

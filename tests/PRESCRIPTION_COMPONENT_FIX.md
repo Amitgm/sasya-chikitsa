@@ -7,18 +7,20 @@
 The prescription component was transitioning to the PRESCRIPTION state but not executing due to **two critical initialization issues**:
 
 #### **1. RAG System Initialization Error**
+
 ```python
 # BEFORE (❌ BROKEN):
 def __init__(self):
     super().__init__()
-    from rag.rag_with_ollama import ollama_rag
-    self.rag_system = ollama_rag  # ❌ Assigning CLASS, not instance!
+    from rag.rag_with_ollama import OllamaRag
+    self.rag_system = OllamaRag  # ❌ Assigning CLASS, not instance!
+
 
 # AFTER (✅ FIXED):
 def __init__(self):
     super().__init__()
-    from rag.rag_with_ollama import ollama_rag
-    self.rag_system = ollama_rag(llm_name="llama-3.1:8b")  # ✅ Creates instance
+    from rag.rag_with_ollama import OllamaRag
+    self.rag_system = OllamaRag(llm_name="llama-3.1:8b")  # ✅ Creates instance
 ```
 
 #### **2. Incorrect RAG Method Call**
