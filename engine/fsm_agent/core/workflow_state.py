@@ -8,7 +8,10 @@ for plant disease diagnosis and prescription.
 from typing import TypedDict, List, Dict, Any, Optional, Annotated
 from typing_extensions import NotRequired
 import operator
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowState(TypedDict):
@@ -149,7 +152,7 @@ def create_initial_state(session_id: str, user_message: str, user_image: Optiona
 
 def add_message_to_state(state: WorkflowState, role: str, content: str, **metadata) -> None:
     """
-    Add a message to the conversation history in the state
+    Add a message to the conversation history in the state with duplicate prevention
     
     Args:
         state: Current workflow state
@@ -157,18 +160,42 @@ def add_message_to_state(state: WorkflowState, role: str, content: str, **metada
         content: Message content
         **metadata: Additional metadata to include
     """
+    # COMPREHENSIVE DUPLICATE PREVENTION: Check if this exact content was already added recently
+    if "messages" not in state:
+        state["messages"] = []
+    
+    existing_messages = state["messages"]
+    
+    # Check last 5 messages of the same role for duplicates
+    recent_same_role_messages = [
+        msg for msg in existing_messages[-5:] 
+        if msg.get("role") == role
+    ]
+    
+    # Check for exact content match (indicating duplicate)
+    duplicate_found = any(
+        msg.get("content") == content and 
+        msg.get("node") == state.get("current_node")  # Same node context
+        for msg in recent_same_role_messages
+    )
+    
+    if duplicate_found:
+        logger.warning(f"🚫 DUPLICATE PREVENTED: {role} message in {state.get('current_node')} node")
+        logger.warning(f"   Content: '{content[:50]}...'")
+        return  # Skip adding duplicate message
+    
+    # Create and add the message
     message = {
         "role": role,
         "content": content,
         "timestamp": datetime.now().isoformat(),
-        "node": state["current_node"],
+        "node": state.get("current_node", "unknown"),
         **metadata
     }
     
-    # Append to messages list (will be handled by Annotated operator.add)
-    if "messages" not in state:
-        state["messages"] = []
+    # Append to messages list
     state["messages"].append(message)
+    logger.debug(f"✅ Added {role} message to state (node: {state.get('current_node')}, total: {len(state['messages'])})")
 
 
 def update_state_node(state: WorkflowState, node_name: str) -> None:

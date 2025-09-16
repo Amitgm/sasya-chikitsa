@@ -61,7 +61,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var removeImageBtn: ImageButton
     private lateinit var uploadSection: CardView
     private lateinit var imageFileName: TextView
-    private lateinit var serverStatus: TextView
     private lateinit var settingsBtn: ImageButton
     private lateinit var fsmModeBtn: ImageButton // Stub initialization in onCreate
 
@@ -219,9 +218,15 @@ class MainActivity : ComponentActivity() {
         removeImageBtn = findViewById(R.id.removeImageBtn)
         uploadSection = findViewById(R.id.uploadSection)
         imageFileName = findViewById(R.id.imageFileName)
-        // Note: Using stateIndicator instead of serverStatus in new layout
-        serverStatus = findViewById(R.id.stateIndicator) 
+        // Profile button replaces status indicator
+        val profileBtn = findViewById<ImageButton>(R.id.profileBtn)
         settingsBtn = findViewById(R.id.settingsBtn)
+        
+        // Set up profile button click listener
+        profileBtn.setOnClickListener {
+            showAgriculturalProfileDialog()
+        }
+        
         // Note: Create stub views for legacy MainActivity compatibility
         // Since MainActivityFSM.kt is now the primary activity, create minimal stubs
         fsmModeBtn = settingsBtn // Use settingsBtn as placeholder for fsmModeBtn
@@ -231,8 +236,8 @@ class MainActivity : ComponentActivity() {
         conversationScrollView = ScrollView(this) 
         conversationContainer = LinearLayout(this)
         
-        // Update server status display
-        updateServerStatusDisplay()
+        // Update profile button state
+        updateProfileButtonState()
         
         // Initialize conversation history if empty
         if (conversationHistory.length == 0) {
@@ -2337,6 +2342,9 @@ class MainActivity : ComponentActivity() {
 
         editor.apply()
         Log.d(TAG, "Saved agricultural profile: $profile")
+        
+        // Update profile button to reflect completed setup
+        updateProfileButtonState()
     }
 
     /**
@@ -2568,7 +2576,7 @@ class MainActivity : ComponentActivity() {
             if (newUrl.isNotEmpty() && ServerConfig.isValidUrl(newUrl)) {
                 ServerConfig.setServerUrl(this, newUrl)
                 RetrofitClient.refreshInstance() // Force recreate with new URL
-                updateServerStatusDisplay() // Update the status display
+                // Profile button state remains unchanged for server updates
                 Toast.makeText(this, "Server URL updated to: $newUrl", Toast.LENGTH_LONG).show()
                 Log.d(TAG, "Server URL updated to: $newUrl")
             } else {
@@ -2689,7 +2697,7 @@ class MainActivity : ComponentActivity() {
 
                 if (newUrl.isNotEmpty()) {
                     ServerConfig.setServerUrl(this, newUrl)
-                    updateServerStatusDisplay()
+                    // Profile button state remains unchanged for server updates
                     Toast.makeText(this, "Server configuration updated to: $newUrl", Toast.LENGTH_LONG).show()
                 } else {
                     Toast.makeText(this, "Please enter a valid URL", Toast.LENGTH_SHORT).show()
@@ -2703,34 +2711,21 @@ class MainActivity : ComponentActivity() {
     }
     
     /**
-     * Update the server status indicator in the header
+     * Update profile button based on user's agricultural profile setup status
      */
-    private fun updateServerStatusDisplay() {
-        val stateIndicator = findViewById<TextView>(R.id.stateIndicator)
-        val currentUrl = ServerConfig.getServerUrl(this)
+    private fun updateProfileButtonState() {
+        val profileBtn = findViewById<ImageButton>(R.id.profileBtn)
+        val prefs = getSharedPreferences("agricultural_profile", Context.MODE_PRIVATE)
+        val hasProfile = prefs.getBoolean("profile_setup_completed", false)
         
-        // Update status indicator based on server configuration
-        when {
-            currentUrl.contains("localhost") || currentUrl.contains("127.0.0.1") -> {
-                stateIndicator.text = "●"
-                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
-                stateIndicator.contentDescription = "Local Development Server"
-            }
-            currentUrl.contains("production") -> {
-                stateIndicator.text = "●"
-                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
-                stateIndicator.contentDescription = "Production Server"
-            }
-            currentUrl.contains("staging") -> {
-                stateIndicator.text = "●"
-                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_blue_light))
-                stateIndicator.contentDescription = "Staging Server"
-            }
-            else -> {
-                stateIndicator.text = "●"
-                stateIndicator.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
-                stateIndicator.contentDescription = "Custom Server"
-            }
+        if (hasProfile) {
+            // User has profile - show normal green tint
+            profileBtn.setColorFilter(ContextCompat.getColor(this, R.color.forest_green))
+            profileBtn.contentDescription = "View Agricultural Profile"
+        } else {
+            // User needs to set up profile - show attention-grabbing color
+            profileBtn.setColorFilter(ContextCompat.getColor(this, R.color.warm_amber))
+            profileBtn.contentDescription = "Set Up Agricultural Profile"
         }
     }
     
@@ -2796,7 +2791,7 @@ class MainActivity : ComponentActivity() {
 
                     if (newUrl.isNotEmpty() && ServerConfig.isValidUrl(newUrl)) {
                         ServerConfig.setServerUrl(this, newUrl)
-                        updateServerStatusDisplay()
+                        // Profile button state remains unchanged for server updates
                         
                         val serverName = if (selectedPosition == defaultUrls.size - 1) "Custom Server" else defaultUrls[selectedPosition].first
                         Toast.makeText(this, "✅ Connected to $serverName\n$newUrl", Toast.LENGTH_LONG).show()
