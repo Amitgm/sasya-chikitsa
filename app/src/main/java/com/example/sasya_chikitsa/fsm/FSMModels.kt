@@ -74,3 +74,8 @@ data class ServerEvent(
     val event: String,
     val data: String
 )
+
+// Assistant response data for dedicated assistant_response events
+data class AssistantResponseData(
+    @SerializedName("assistant_response") val assistant_response: String? = null
+)

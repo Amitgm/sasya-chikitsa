@@ -51,6 +51,12 @@ class InitialNode(BaseNode):
             user_intent = await self._analyze_user_intent(state["user_message"])
             state["user_intent"] = user_intent
             
+            # FIXED: Check for goodbye intent BEFORE processing other intents
+            if await self._detect_goodbye_intent(state):
+                logger.info("👋 Goodbye intent detected in new message - routing to session_end")
+                state["next_action"] = "session_end"
+                return state
+            
             # Extract context from user message if possible
             context_tool = self.tools["context_extractor"]
             context_input = {"user_message": state["user_message"]}
@@ -234,6 +240,55 @@ What would you like me to help you with? Please share more details or upload a p
         # Fallback to simple keyword-based analysis if LLM fails
         logger.info("🔄 Using fallback keyword-based intent analysis")
         return await self._fallback_intent_analysis(user_message)
+    
+    async def _detect_goodbye_intent(self, state) -> bool:
+        """
+        Detect if user wants to end the session using LLM analysis
+        """
+        try:
+            user_message = state.get("user_message", "")
+            if not user_message:
+                return False
+            
+            goodbye_prompt = f"""Analyze this user message to determine if they want to END or CLOSE their consultation session.
+
+User message: "{user_message}"
+
+Look for goodbye indicators like:
+- Thank you, thanks, thank u (when expressing gratitude for completion)
+- Bye, goodbye, see you, farewell, adios, ciao
+- That's all, that's it, I'm done, finished, complete
+- End session, close, finish, stop, quit, exit
+- No more questions, nothing else, all set
+- Perfect, great, awesome (when indicating satisfaction and closure)
+
+Respond with ONLY "YES" if they want to end the session, or "NO" if they want to continue.
+
+Response:"""
+
+            # Get LLM response
+            response = await self.llm.ainvoke(goodbye_prompt)
+            response_text = response.content.strip().upper()
+            
+            logger.debug(f"🤖 Goodbye intent analysis: '{user_message}' -> {response_text}")
+            
+            # Simple check for YES/NO
+            wants_to_end = "YES" in response_text and "NO" not in response_text
+            
+            return wants_to_end
+            
+        except Exception as e:
+            logger.error(f"❌ Error in goodbye intent detection: {e}")
+            # Fallback to simple keyword detection
+            user_message_lower = user_message.lower()
+            goodbye_keywords = [
+                "thank you", "thanks", "bye", "goodbye", "farewell", 
+                "that's all", "that's it", "done", "finished", "complete",
+                "end session", "quit", "exit", "stop", "no more"
+            ]
+            fallback_result = any(keyword in user_message_lower for keyword in goodbye_keywords)
+            logger.info(f"👋 Fallback goodbye intent detection: {fallback_result}")
+            return fallback_result
     
     def _build_intent_analysis_prompt(self, user_message: str) -> str:
         """Build the intent analysis prompt"""

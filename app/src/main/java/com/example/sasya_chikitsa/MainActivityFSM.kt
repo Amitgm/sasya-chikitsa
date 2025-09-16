@@ -19,6 +19,7 @@ import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import java.util.UUID
 import com.example.sasya_chikitsa.config.ServerConfig
 import com.example.sasya_chikitsa.fsm.*
 import com.example.sasya_chikitsa.network.RetrofitClient
@@ -48,6 +49,10 @@ import java.util.*
  */
 class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
     
+    companion object {
+        private const val TAG = "MainActivityFSM"
+    }
+    
     // UI Components
     private lateinit var stateIndicator: TextView
     private lateinit var settingsBtn: ImageButton
@@ -65,7 +70,9 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
     // FSM Components
     private lateinit var chatAdapter: ChatAdapter
     private lateinit var streamHandler: FSMStreamHandler
-    private var currentSessionState = FSMSessionState()
+    private var currentSessionState = FSMSessionState(
+        sessionId = "fsm_${UUID.randomUUID().toString()}" // FIXED: Generate proper session ID  
+    )
     
     // Image handling
     private var selectedImageUri: Uri? = null
@@ -75,8 +82,6 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
     private var isThinking = false
     private var thinkingAnimation: Runnable? = null
     private var thinkingMessage: ChatMessage? = null
-    
-    private val TAG = "MainActivityFSM"
     
     // Image picker launcher
     private val imagePickerLauncher = registerForActivityResult(
@@ -88,6 +93,9 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        
+        // Log the session ID that was created
+        Log.i(TAG, "🆔 FSM Session created: ${currentSessionState.sessionId}")
         
         initializeFSMComponents()
         initializeViews()

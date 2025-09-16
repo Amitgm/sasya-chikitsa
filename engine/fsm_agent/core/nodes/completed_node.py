@@ -36,64 +36,45 @@ class CompletedNode(BaseNode):
         """
         self.update_node_state(state)
         
-        # Check if user indicated they want to end the session
-        user_wants_to_end = await self._detect_goodbye_intent(state)
+        # FIXED: Never do goodbye detection in completed node!
+        # Goodbye detection is handled at routing level (initial_node, followup_node)
+        # The completed node should ONLY create completion messages and end the workflow
+        
+        # FIXED: Check if there's a clean, direct response from followup node
+        existing_response = state.get("assistant_response", "")
+        previous_node = state.get("previous_node", "")
         
         # Generate follow-up questions based on previous state and context
         follow_ups = self._generate_follow_ups(state)
         
-        if user_wants_to_end:
-            # User said goodbye - show full completion message
-            completion_message = self._create_full_completion_message(follow_ups)
+        # CRITICAL FIX: Only use existing response if it's a direct followup answer
+        # Don't wrap followup responses - they're already clean and targeted
+        if existing_response and existing_response.strip() and previous_node == "followup":
+            # Direct followup response - use as-is, just add minimal follow-up options
+            completion_message = self._create_clean_followup_response(existing_response, follow_ups)
+        elif existing_response and existing_response.strip() and previous_node in ["classifying", "prescribing"]:
+            # Tool workflow completed - add follow-up options without ugly formatting
+            completion_message = self._create_clean_workflow_completion(existing_response, follow_ups)
         else:
-            # User didn't say goodbye - show ongoing support only
+            # No direct response - show standard completion message
             completion_message = self._create_ongoing_support_message(follow_ups)
         
-        # IMPORTANT: Store completion response in a field that gets streamed
-        # (messages get filtered out, but we need this to stream to users)
+        # Store the enhanced completion response
         state["assistant_response"] = completion_message
+        
+        # GENERIC ARCHITECTURAL FIX: Mark response as final and ready for streaming
+        state["response_status"] = "final"  # This is the enhanced, final version
+        state["stream_immediately"] = True  # Ready to stream to user
+        state["stream_in_state_update"] = False  # Use dedicated streaming, not state_update
         
         # Also add to messages for conversation history
         add_message_to_state(state, "assistant", completion_message)
         
-        # Mark as complete only if user wants to end
-        state["is_complete"] = user_wants_to_end
+        # FIXED: Never mark session as complete in completed node
+        # Only session_end node should mark sessions as ended
+        state["is_complete"] = False  # Workflow complete, but session continues
         
         return state
-    
-    def _create_full_completion_message(self, follow_ups: List[str]) -> str:
-        """Create completion message for users saying goodbye"""
-        completion_message = f"""✅ **YOUR PLANT CHECKUP IS DONE**
-
-🌱 **WHAT WE DID**
-We checked your plant and gave you treatment advice. Our smart system analyzed your plant photo and provided helpful recommendations.
-
-🚀 **WHAT TO DO NEXT**"""
-        
-        if follow_ups:
-            for i, follow_up in enumerate(follow_ups, 1):
-                completion_message += f"""
-{i}. {follow_up}"""
-        else:
-            completion_message += """
-1. Check your plant daily to see if it's getting better
-2. Keep following the care tips we gave you
-3. Take new photos if you see more problems"""
-        
-        completion_message += f"""
-
-💚 **WE'RE HERE TO HELP**
-• Take new photos anytime if you see more problems
-• Ask questions about how the treatment is working
-• Find out where to buy medicines for your plants
-• Get tips for different seasons and weather
-
-⏰ **Checkup Completed**
-{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-🌱 **Thank you for using Sasya Arogya! Keep your plants healthy!**"""
-        
-        return completion_message
     
     def _create_ongoing_support_message(self, follow_ups: List[str]) -> str:
         """Create completion message for ongoing support"""
@@ -124,51 +105,38 @@ We checked your plant and gave you treatment advice. Our smart system analyzed y
         
         return completion_message
     
-    async def _detect_goodbye_intent(self, state: WorkflowState) -> bool:
-        """
-        Detect if user wants to end the session using LLM analysis
-        """
-        try:
-            user_message = state.get("user_message", "")
-            if not user_message:
-                return False
+    def _create_clean_followup_response(self, direct_response: str, follow_ups: List[str]) -> str:
+        """Create clean followup response without ugly formatting - farmers want direct answers!"""
+        
+        # FIXED: No ugly horizontal lines, no extra wrapping - just the answer!
+        clean_message = direct_response.strip()
+        
+        # Add minimal follow-up options only if needed
+        if follow_ups:
+            clean_message += f"\n\n💡 **Next steps**: {', '.join(follow_ups[:2])}"
+        else:
+            clean_message += "\n\n💡 **Ask me anything else about your plants!**"
             
-            goodbye_prompt = f"""Analyze this user message to determine if they want to END or CLOSE their consultation session.
-
-User message: "{user_message}"
-
-Look for goodbye indicators like:
-- Thank you, thanks, thank u
-- Bye, goodbye, see you, farewell
-- That's all, that's it, I'm done
-- End session, close, finish, complete
-- No more questions, nothing else
-- Perfect, great, awesome (when indicating satisfaction and closure)
-
-Respond with ONLY "YES" if they want to end the session, or "NO" if they want to continue.
-
-Response:"""
-
-            # Get LLM response
-            response = await self.llm.ainvoke(goodbye_prompt)
-            response_text = response.content.strip().upper()
+        return clean_message
+    
+    def _create_clean_workflow_completion(self, workflow_response: str, follow_ups: List[str]) -> str:
+        """Create clean completion for workflow tools (classification, prescription) without ugly formatting"""
+        
+        # FIXED: No ugly horizontal lines - just clean completion
+        clean_message = workflow_response.strip()
+        
+        # Add clean next steps for workflow completions
+        clean_message += "\n\n**What would you like to do next?**"
+        if follow_ups:
+            for i, follow_up in enumerate(follow_ups[:3], 1):
+                clean_message += f"\n• {follow_up}"
+        else:
+            clean_message += """
+• 📸 Upload another image for analysis
+• 💊 Get treatment recommendations 
+• 🛒 Find suppliers for treatments"""
             
-            logger.debug(f"🤖 Goodbye intent analysis: '{user_message}' -> {response_text}")
-            
-            # Simple check for YES/NO
-            wants_to_end = "YES" in response_text and "NO" not in response_text
-            
-            logger.info(f"👋 User goodbye intent detected: {wants_to_end}")
-            return wants_to_end
-            
-        except Exception as e:
-            logger.error(f"❌ Error in goodbye intent detection: {e}")
-            # Fallback to simple keyword detection
-            user_message_lower = user_message.lower() if user_message else ""
-            goodbye_keywords = ["thank you", "thanks", "bye", "goodbye", "that's all", "that's it", "done", "finish", "complete"]
-            fallback_result = any(keyword in user_message_lower for keyword in goodbye_keywords)
-            logger.info(f"👋 Fallback goodbye intent: {fallback_result}")
-            return fallback_result
+        return clean_message
     
     def _generate_follow_ups(self, state: WorkflowState) -> List[str]:
         """

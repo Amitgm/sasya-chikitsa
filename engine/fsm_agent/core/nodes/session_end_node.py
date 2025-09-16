@@ -42,6 +42,11 @@ class SessionEndNode(BaseNode):
             # Store the farewell response for streaming
             state["assistant_response"] = farewell_message
             
+            # GENERIC ARCHITECTURAL FIX: Set streaming metadata for modular duplicate prevention
+            state["response_status"] = "final"  # This is the enhanced, final version ready for streaming
+            state["stream_immediately"] = True  # Node indicates immediate streaming needed
+            state["stream_in_state_update"] = False  # Don't include in state_update events
+            
             # Add to messages for conversation history
             add_message_to_state(state, "assistant", farewell_message)
             
@@ -68,6 +73,12 @@ class SessionEndNode(BaseNode):
             state["is_complete"] = True
             state["session_ended"] = True
             state["assistant_response"] = "Thank you for using our plant care service. Take care! 🌱"
+            
+            # GENERIC ARCHITECTURAL FIX: Set streaming metadata for modular duplicate prevention
+            state["response_status"] = "final"  # This is the enhanced, final version ready for streaming
+            state["stream_immediately"] = True  # Node indicates immediate streaming needed
+            state["stream_in_state_update"] = False  # Don't include in state_update events
+            
             add_message_to_state(state, "assistant", state["assistant_response"])
             
             return state
