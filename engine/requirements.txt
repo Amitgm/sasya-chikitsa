@@ -387,6 +387,11 @@ langchain-text-splitters==0.3.9
     # via langchain
 langcodes==3.5.0
     # via spacy
+langgraph==0.6.7
+langgraph-checkpoint==2.1.1
+langgraph-prebuilt==0.6.4
+langgraph-sdk==0.2.6
+
 langsmith==0.4.20
     # via
     #   langchain
