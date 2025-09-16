@@ -1,6 +1,9 @@
 package com.example.sasya_chikitsa.fsm
 
+import android.graphics.BitmapFactory
 import android.graphics.drawable.GradientDrawable
+import android.util.Base64
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -264,8 +267,8 @@ class ChatAdapter(
                 
                 // Decode and display the base64 attention overlay image
                 try {
-                    val imageBytes = android.util.Base64.decode(message.attentionOverlayBase64, android.util.Base64.DEFAULT)
-                    val bitmap = android.graphics.BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                    val imageBytes = Base64.decode(message.attentionOverlayBase64, Base64.DEFAULT)
+                    val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
                     attentionOverlayImage.setImageBitmap(bitmap)
                 } catch (e: Exception) {
                     Log.e("ChatAdapter", "Error decoding attention overlay image", e)

@@ -115,7 +115,7 @@
                         android:id="@+id/attentionOverlayImage"
                         android:layout_width="match_parent"
                         android:layout_height="200dp"
-                        android:background="@drawable/rounded_corner_background"
+                        android:background="@drawable/modern_card_background"
                         android:scaleType="centerCrop"
                         android:layout_marginBottom="8dp"
                         android:contentDescription="AI attention overlay showing diagnostic focus areas" />
