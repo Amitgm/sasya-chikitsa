@@ -157,37 +157,20 @@ class CNNWithAttentionClassifier(Layer):
                         yield "Creating attention heatmap overlay...\n"
                         time.sleep(0.3)
                         
-                        # Create overlay that preserves original image with red/yellow attention highlights
+                        # Create heatmap overlay
+                        heatmap = cv2.applyColorMap(
+                            np.uint8(255 * normalized_attention),
+                            cv2.COLORMAP_VIRIDIS
+                        )
+                        heatmap_rgb = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+
+                        # Blend with original image
                         original_float = original_image_rgb.astype(np.float32) / 255.0
-                        
-                        # Create attention mask with lower threshold for better visibility
-                        attention_threshold = 0.15  # Capture more attention areas (>15%)
-                        attention_mask = normalized_attention > attention_threshold
-                        
-                        # Start with original image as base
-                        overlay = original_float.copy()
-                        
-                        # Add blue/yellow highlights with enhanced visibility for maximum contrast
-                        if np.any(attention_mask):
-                            # Create blue-to-yellow gradient based on attention strength
-                            attention_strength = normalized_attention[attention_mask]
-                            
-                            # Boost attention strength for better visibility
-                            boosted_strength = np.power(attention_strength, 0.7)  # Power curve for contrast
-                            
-                            # Blue for medium attention, bright yellow for high attention
-                            red_component = boosted_strength  # Varies from 0 (pure blue) to 1 (yellow)
-                            green_component = boosted_strength  # Varies from 0 (pure blue) to 1 (yellow)
-                            blue_component = np.ones_like(boosted_strength)  # Always full blue
-                            
-                            # Apply highlights with higher opacity for better visibility  
-                            highlight_alpha = 0.75 * boosted_strength  # Max 75% opacity for blue/yellow
-                            
-                            # Blend enhanced blue/yellow highlights onto original image
-                            overlay[attention_mask, 0] = (1 - highlight_alpha) * overlay[attention_mask, 0] + highlight_alpha * red_component
-                            overlay[attention_mask, 1] = (1 - highlight_alpha) * overlay[attention_mask, 1] + highlight_alpha * green_component  
-                            overlay[attention_mask, 2] = (1 - highlight_alpha) * overlay[attention_mask, 2] + highlight_alpha * blue_component
-                        
+                        heatmap_float = heatmap_rgb.astype(np.float32) / 255.0
+                        alpha = np.expand_dims(normalized_attention, axis=-1)
+                        alpha = np.repeat(alpha, 3, axis=-1)
+
+                        overlay = (1 - alpha) * original_float + alpha * heatmap_float
                         overlay = np.clip(overlay, 0, 1)
                         
                         # Convert to image and encode as base64
@@ -362,37 +345,20 @@ class CNNWithAttentionClassifier(Layer):
                         else:
                             normalized_attention = np.zeros_like(resized_attention)
                         
-                        # Create overlay that preserves original image with red/yellow attention highlights
+                        # Create heatmap overlay
+                        heatmap = cv2.applyColorMap(
+                            np.uint8(255 * normalized_attention),
+                            cv2.COLORMAP_VIRIDIS
+                        )
+                        heatmap_rgb = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+
+                        # Blend with original image
                         original_float = original_image_rgb.astype(np.float32) / 255.0
-                        
-                        # Create attention mask with lower threshold for better visibility
-                        attention_threshold = 0.15  # Capture more attention areas (>15%)
-                        attention_mask = normalized_attention > attention_threshold
-                        
-                        # Start with original image as base
-                        overlay = original_float.copy()
-                        
-                        # Add blue/yellow highlights with enhanced visibility for maximum contrast
-                        if np.any(attention_mask):
-                            # Create blue-to-yellow gradient based on attention strength
-                            attention_strength = normalized_attention[attention_mask]
-                            
-                            # Boost attention strength for better visibility
-                            boosted_strength = np.power(attention_strength, 0.7)  # Power curve for contrast
-                            
-                            # Blue for medium attention, bright yellow for high attention
-                            red_component = boosted_strength  # Varies from 0 (pure blue) to 1 (yellow)
-                            green_component = boosted_strength  # Varies from 0 (pure blue) to 1 (yellow)
-                            blue_component = np.ones_like(boosted_strength)  # Always full blue
-                            
-                            # Apply highlights with higher opacity for better visibility  
-                            highlight_alpha = 0.75 * boosted_strength  # Max 75% opacity for blue/yellow
-                            
-                            # Blend enhanced blue/yellow highlights onto original image
-                            overlay[attention_mask, 0] = (1 - highlight_alpha) * overlay[attention_mask, 0] + highlight_alpha * red_component
-                            overlay[attention_mask, 1] = (1 - highlight_alpha) * overlay[attention_mask, 1] + highlight_alpha * green_component  
-                            overlay[attention_mask, 2] = (1 - highlight_alpha) * overlay[attention_mask, 2] + highlight_alpha * blue_component
-                        
+                        heatmap_float = heatmap_rgb.astype(np.float32) / 255.0
+                        alpha = np.expand_dims(normalized_attention, axis=-1)
+                        alpha = np.repeat(alpha, 3, axis=-1)
+
+                        overlay = (1 - alpha) * original_float + alpha * heatmap_float
                         overlay = np.clip(overlay, 0, 1)
                         
                         # Convert to image and encode as base64
