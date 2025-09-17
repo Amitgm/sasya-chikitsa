@@ -105,7 +105,7 @@
                         android:id="@+id/overlayDescription"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Original image vs AI attention heatmap"
+                        android:text="Original image vs AI attention heatmap • Tap to view full size"
                         android:textSize="12sp"
                         android:textColor="#666666"
                         android:layout_marginBottom="8dp" />

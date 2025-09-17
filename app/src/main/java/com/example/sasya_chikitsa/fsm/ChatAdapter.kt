@@ -1,5 +1,6 @@
 package com.example.sasya_chikitsa.fsm
 
+import android.app.Dialog
 import android.graphics.BitmapFactory
 import android.graphics.drawable.GradientDrawable
 import android.util.Base64
@@ -257,11 +258,11 @@ class ChatAdapter(
             if (message.attentionOverlayBase64 != null) {
                 attentionOverlayContainer.visibility = View.VISIBLE
                 
-                // Update description with disease info
+                // Update description with disease info and clickable hint
                 val description = if (message.diseaseName != null && message.confidence != null) {
-                    "Detected: ${message.diseaseName} (${String.format("%.1f", message.confidence * 100)}% confidence)"
+                    "Detected: ${message.diseaseName} (${String.format("%.1f", message.confidence * 100)}% confidence) • Tap to view full size"
                 } else {
-                    "Original image vs AI attention heatmap"
+                    "Original image vs AI attention heatmap • Tap to view full size"
                 }
                 overlayDescription.text = description
                 
@@ -270,6 +271,18 @@ class ChatAdapter(
                     val imageBytes = Base64.decode(message.attentionOverlayBase64, Base64.DEFAULT)
                     val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
                     attentionOverlayImage.setImageBitmap(bitmap)
+                    
+                    // Make the overlay clickable to open in full-screen modal
+                    attentionOverlayImage.setOnClickListener {
+                        showAttentionOverlayModal(bitmap, message.diseaseName, message.confidence)
+                    }
+                    
+                    // Add visual feedback for clickability
+                    attentionOverlayImage.background = ContextCompat.getDrawable(
+                        itemView.context, 
+                        android.R.drawable.list_selector_background
+                    )
+                    
                 } catch (e: Exception) {
                     Log.e("ChatAdapter", "Error decoding attention overlay image", e)
                     attentionOverlayContainer.visibility = View.GONE
@@ -277,6 +290,42 @@ class ChatAdapter(
             } else {
                 attentionOverlayContainer.visibility = View.GONE
             }
+        }
+        
+        private fun showAttentionOverlayModal(bitmap: android.graphics.Bitmap, diseaseName: String?, confidence: Double?) {
+            // Create custom dialog
+            val dialog = android.app.Dialog(itemView.context, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+            dialog.setContentView(R.layout.dialog_attention_overlay)
+            
+            // Set up dialog views
+            val imgOverlay = dialog.findViewById<ImageView>(R.id.imgAttentionOverlay)
+            val tvDiseaseInfo = dialog.findViewById<TextView>(R.id.tvDiseaseInfo)
+            val btnClose = dialog.findViewById<ImageButton>(R.id.btnClose)
+            
+            // Display the full-size overlay image
+            imgOverlay.setImageBitmap(bitmap)
+            
+            // Update disease information
+            val diseaseText = if (diseaseName != null && confidence != null) {
+                "Detected: $diseaseName (${String.format("%.1f", confidence * 100)}% confidence)"
+            } else {
+                "AI Attention Analysis - Diagnostic Focus Areas"
+            }
+            tvDiseaseInfo.text = diseaseText
+            
+            // Close button functionality
+            btnClose.setOnClickListener {
+                dialog.dismiss()
+            }
+            
+            // Allow tapping outside to close
+            dialog.setCancelable(true)
+            dialog.setCanceledOnTouchOutside(true)
+            
+            // Show the dialog
+            dialog.show()
+            
+            Log.d("ChatAdapter", "🎯 Opened attention overlay modal for full-screen viewing")
         }
     }
 }
