@@ -421,39 +421,31 @@ class DynamicPlanningWorkflow:
                         break
                 logger.debug(f"Refactored workflow chunk for {session_id}: current_node={current_node_for_log}, has_messages={has_messages_for_log}")
                 
-                # Calculate DELTA - only what's NEW/CHANGED from previous state
-                delta_chunk = self._calculate_state_delta(chunk, previous_state)
-                
-                # Only stream if there are meaningful changes
-                if delta_chunk:
-                    # Remove problematic data from delta (images, attention_overlay)  
-                    filtered_delta = self._filter_chunk_for_streaming(delta_chunk)
-                    
-                    if filtered_delta:  # Only stream non-empty deltas
-                        yield {
-                            "type": "state_update",
-                            "session_id": session_id,
-                            "data": filtered_delta
-                        }
-                
-                # Extract actual state data from LangGraph updates format
+                # Extract actual state data from LangGraph updates format first
                 actual_state_data = {}
                 for node_name, state_data in chunk.items():
                     if isinstance(state_data, dict):
                         actual_state_data.update(state_data)
                 
-                # GENERIC: Stream attention overlay from any node that produces one (temporary data only)
-                # Check for temporary attention overlay in chunk data (not persisted state)
+                # Calculate DELTA - only what's NEW/CHANGED from previous state
+                delta_chunk = self._calculate_state_delta(chunk, previous_state)
+                
+                # FIRST: Check for attention overlay in delta before filtering (temporary data only)
                 temp_attention_overlay = None
                 source_node = actual_state_data.get("current_node", "unknown")
                 
-                # Look for attention overlay in any results structure from this workflow step
-                for key, value in actual_state_data.items():
-                    if isinstance(value, dict) and value.get("attention_overlay"):
-                        temp_attention_overlay = value["attention_overlay"]
-                        logger.debug(f"Found attention overlay in {key} from node {source_node}")
-                        break
+                # Look for attention overlay in delta chunk (before filtering removes it)
+                if delta_chunk:
+                    logger.debug(f"🔍 DEBUG: Checking delta chunk for attention overlay in node {source_node}")
+                    for key, value in delta_chunk.items():
+                        if isinstance(value, dict):
+                            logger.debug(f"🔍 DEBUG: Checking delta dict {key} with keys: {list(value.keys()) if value else 'None'}")
+                            if value.get("attention_overlay"):
+                                temp_attention_overlay = value["attention_overlay"]
+                                logger.info(f"✅ Found attention overlay in DELTA {key} from node {source_node}")
+                                break
                 
+                # Stream attention overlay if found (before it gets filtered out)
                 if temp_attention_overlay:
                     # Prevent duplicate streaming using overlay content hash + session + node
                     overlay_hash = hash(temp_attention_overlay[:100] + session_id + source_node)
@@ -480,6 +472,18 @@ class DynamicPlanningWorkflow:
                         logger.info(f"🎯 Streamed attention overlay from node '{source_node}' for session {session_id}")
                     else:
                         logger.debug(f"🔄 Skipped duplicate attention overlay from node '{source_node}' for session {session_id}")
+                
+                # THEN: Filter and stream regular state updates
+                if delta_chunk:
+                    # Remove problematic data from delta (images, attention_overlay)  
+                    filtered_delta = self._filter_chunk_for_streaming(delta_chunk)
+                    
+                    if filtered_delta:  # Only stream non-empty deltas
+                        yield {
+                            "type": "state_update",
+                            "session_id": session_id,
+                            "data": filtered_delta
+                        }
                 
                 # Only track state transitions for logging purposes
                 if current_node and current_node != last_node:
