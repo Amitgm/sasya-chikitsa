@@ -4,112 +4,296 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp"
-    android:background="@color/white">
+    android:background="@drawable/gradient_background"
+    android:fitsSystemWindows="true">
 
-    <!-- Result Card -->
+    <!-- Professional Header Banner -->
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:padding="16dp"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="4dp">
+        android:layout_margin="8dp"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="8dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center_horizontal">
+            android:orientation="horizontal"
+            android:padding="16dp"
+            android:gravity="center_vertical"
+            android:background="@drawable/professional_header_gradient">
 
-            <!-- Icon -->
-            <ImageView
-                android:id="@+id/diseaseIcon"
+            <!-- Enhanced App Icon with Glow -->
+            <androidx.cardview.widget.CardView
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:src="@drawable/ic_leaf"
-                android:layout_marginBottom="8dp" />
+                app:cardCornerRadius="24dp"
+                app:cardElevation="4dp"
+                android:layout_marginEnd="16dp">
+                
+                <ImageView
+                    android:id="@+id/appIcon"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/ic_local_florist"
+                    android:background="@drawable/icon_background_gradient"
+                    android:padding="10dp"
+                    android:scaleType="centerInside" />
+            </androidx.cardview.widget.CardView>
 
-            <!-- Title -->
-            <TextView
-                android:id="@+id/diseaseName"
-                android:layout_width="wrap_content"
+            <!-- Enhanced Title Section -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:text="Powdery Mildew"
-                android:textStyle="bold"
-                android:textSize="20sp"
-                android:textColor="@color/black"
-                android:layout_marginBottom="4dp"/>
+                android:orientation="vertical">
+                
+                <TextView
+                    android:id="@+id/appTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sasya Arogya"
+                    android:textStyle="bold"
+                    android:textSize="22sp"
+                    android:textColor="#FFFFFF"
+                    android:shadowColor="#40000000"
+                    android:shadowDx="1"
+                    android:shadowDy="1"
+                    android:shadowRadius="2" />
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="A comprehensive Plant Care Expert"
+                    android:textSize="12sp"
+                    android:textColor="#E0FFFFFF"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
 
-            <!-- Confidence -->
-            <TextView
-                android:id="@+id/confidence"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Confidence: 85%"
-                android:textStyle="italic"
-                android:textSize="14sp"
-                android:textColor="@color/black"
-                android:layout_marginBottom="8dp"/>
+            <!-- User Profile Button -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                app:cardCornerRadius="22dp"
+                app:cardElevation="3dp"
+                android:layout_marginEnd="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackgroundBorderless">
+                
+                <ImageButton
+                    android:id="@+id/profileBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/ic_person"
+                    android:background="@drawable/icon_background_gradient"
+                    android:padding="10dp"
+                    android:scaleType="centerInside"
+                    android:contentDescription="Agricultural Profile"
+                    android:tint="@color/forest_green" />
+            </androidx.cardview.widget.CardView>
 
-            <!-- Description -->
-            <TextView
-                android:id="@+id/diseaseDescription"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Powdery mildew fungal disease that appears as white or grayish powdery spots..."
-                android:textSize="14sp"
-                android:gravity="center"
-                android:textColor="@color/black"/>
+            <!-- Enhanced Settings Button -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="50dp"
+                android:layout_height="44dp"
+                app:cardCornerRadius="22dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="#40FFFFFF">
+                
+                <ImageButton
+                    android:id="@+id/settingsBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/ic_settings"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:padding="10dp"
+                    android:contentDescription="Settings"
+                    android:scaleType="centerInside" />
+            </androidx.cardview.widget.CardView>
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
-    <!-- Upload Section -->
-    <LinearLayout
+    <!-- Enhanced Chat Conversation Section -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginLeft="8dp"
+        android:layout_marginRight="8dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="8dp"
+        app:cardCornerRadius="15dp"
+        app:cardElevation="3dp"
+        android:background="@drawable/chat_background">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:background="@drawable/chat_background">
+
+            <!-- Chat Messages RecyclerView -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/chatRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:padding="12dp"
+                android:scrollbars="vertical"
+                android:fadeScrollbars="false"
+                android:scrollbarSize="6dp"
+                android:clipToPadding="false"
+                android:background="@drawable/chat_background" />
+
+            <!-- Follow-up Buttons Container -->
+            <LinearLayout
+                android:id="@+id/followUpContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:visibility="gone"
+                android:background="@android:color/transparent">
+
+                <TextView
+                    android:id="@+id/followUpTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📝 What would you like to know next?"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="#2D3748"
+                    android:layout_marginBottom="8dp" />
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/followUpChipGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:chipSpacing="8dp"
+                    app:chipSpacingHorizontal="8dp"
+                    app:chipSpacingVertical="4dp" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Modern Upload Section -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/uploadSection"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="16dp">
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="16dp"
+        android:layout_marginBottom="8dp"
+        app:cardCornerRadius="15dp"
+        app:cardElevation="3dp"
+        android:visibility="gone"
+        android:background="@drawable/modern_input_background">
 
-        <ImageView
-            android:id="@+id/imagePreview"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_launcher_foreground"
-            android:scaleType="centerCrop"
-            android:layout_marginRight="8dp"
-            android:background="@drawable/preview_background"/>
-
-        <Button
-            android:id="@+id/uploadBtn"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:text="+ Upload"/>
-    </LinearLayout>
-
-    <!-- Message Input Section -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@drawable/input_background"
-        android:padding="8dp">
-
-        <EditText
-            android:id="@+id/messageInput"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:hint="Message"
-            android:padding="8dp"
-            android:background="@android:color/transparent"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="12dp"
+            android:background="@drawable/modern_input_background">
 
-        <ImageButton
-            android:id="@+id/sendBtn"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_send"
-            android:background="@android:color/transparent"/>
-    </LinearLayout>
+            <ImageView
+                android:id="@+id/imagePreview"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:src="@drawable/ic_launcher_foreground"
+                android:scaleType="centerCrop"
+                android:layout_marginRight="12dp"
+                android:background="@drawable/modern_button"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/imageFileName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📷 Image attached"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="#2D3748"
+                    android:layout_marginBottom="2dp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Ready to analyze"
+                    android:textSize="12sp"
+                    android:textColor="#718096"/>
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/removeImageBtn"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@android:drawable/ic_delete"
+                android:background="@drawable/modern_button"
+                android:padding="8dp"
+                android:contentDescription="Remove image"/>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Modern Bottom Input Section -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        app:cardCornerRadius="25dp"
+        app:cardElevation="6dp"
+        android:background="@drawable/modern_input_background">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="8dp"
+            android:background="@drawable/modern_input_background">
+
+            <ImageButton
+                android:id="@+id/uploadBtn"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:src="@android:drawable/ic_menu_camera"
+                android:background="@drawable/modern_button"
+                android:padding="12dp"
+                android:layout_marginRight="8dp"
+                android:contentDescription="Upload photo"/>
+
+            <EditText
+                android:id="@+id/messageInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Ask about your plants... 🌱"
+                android:padding="16dp"
+                android:background="@android:color/transparent"
+                android:maxLines="4"
+                android:inputType="textMultiLine|textCapSentences"
+                android:textSize="16sp"
+                android:textColor="#2D3748"
+                android:textColorHint="#A0AEC0"
+                android:minHeight="50dp"/>
+
+            <ImageButton
+                android:id="@+id/sendBtn"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:src="@drawable/ic_send"
+                android:background="@drawable/modern_button"
+                android:padding="12dp"
+                android:layout_marginLeft="8dp"
+                android:contentDescription="Send message"/>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
 </LinearLayout>
