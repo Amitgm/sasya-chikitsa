@@ -167,23 +167,23 @@ class CNNWithAttentionClassifier(Layer):
                         # Start with original image as base
                         overlay = original_float.copy()
                         
-                        # Add red/yellow highlights with enhanced visibility
+                        # Add blue/yellow highlights with enhanced visibility for maximum contrast
                         if np.any(attention_mask):
-                            # Create red-to-yellow gradient based on attention strength
+                            # Create blue-to-yellow gradient based on attention strength
                             attention_strength = normalized_attention[attention_mask]
                             
                             # Boost attention strength for better visibility
                             boosted_strength = np.power(attention_strength, 0.7)  # Power curve for contrast
                             
-                            # Red for medium attention, bright yellow for high attention
-                            red_component = np.ones_like(boosted_strength)  # Always full red
-                            green_component = boosted_strength  # Enhanced gradient to bright yellow
-                            blue_component = np.zeros_like(boosted_strength)  # No blue
+                            # Blue for medium attention, bright yellow for high attention
+                            red_component = boosted_strength  # Varies from 0 (pure blue) to 1 (yellow)
+                            green_component = boosted_strength  # Varies from 0 (pure blue) to 1 (yellow)
+                            blue_component = np.ones_like(boosted_strength)  # Always full blue
                             
                             # Apply highlights with higher opacity for better visibility  
-                            highlight_alpha = 0.65 * boosted_strength  # Max 65% opacity
+                            highlight_alpha = 0.75 * boosted_strength  # Max 75% opacity for blue/yellow
                             
-                            # Blend enhanced red/yellow highlights onto original image
+                            # Blend enhanced blue/yellow highlights onto original image
                             overlay[attention_mask, 0] = (1 - highlight_alpha) * overlay[attention_mask, 0] + highlight_alpha * red_component
                             overlay[attention_mask, 1] = (1 - highlight_alpha) * overlay[attention_mask, 1] + highlight_alpha * green_component  
                             overlay[attention_mask, 2] = (1 - highlight_alpha) * overlay[attention_mask, 2] + highlight_alpha * blue_component
@@ -372,23 +372,23 @@ class CNNWithAttentionClassifier(Layer):
                         # Start with original image as base
                         overlay = original_float.copy()
                         
-                        # Add red/yellow highlights with enhanced visibility
+                        # Add blue/yellow highlights with enhanced visibility for maximum contrast
                         if np.any(attention_mask):
-                            # Create red-to-yellow gradient based on attention strength
+                            # Create blue-to-yellow gradient based on attention strength
                             attention_strength = normalized_attention[attention_mask]
                             
                             # Boost attention strength for better visibility
                             boosted_strength = np.power(attention_strength, 0.7)  # Power curve for contrast
                             
-                            # Red for medium attention, bright yellow for high attention
-                            red_component = np.ones_like(boosted_strength)  # Always full red
-                            green_component = boosted_strength  # Enhanced gradient to bright yellow
-                            blue_component = np.zeros_like(boosted_strength)  # No blue
+                            # Blue for medium attention, bright yellow for high attention
+                            red_component = boosted_strength  # Varies from 0 (pure blue) to 1 (yellow)
+                            green_component = boosted_strength  # Varies from 0 (pure blue) to 1 (yellow)
+                            blue_component = np.ones_like(boosted_strength)  # Always full blue
                             
                             # Apply highlights with higher opacity for better visibility  
-                            highlight_alpha = 0.65 * boosted_strength  # Max 65% opacity
+                            highlight_alpha = 0.75 * boosted_strength  # Max 75% opacity for blue/yellow
                             
-                            # Blend enhanced red/yellow highlights onto original image
+                            # Blend enhanced blue/yellow highlights onto original image
                             overlay[attention_mask, 0] = (1 - highlight_alpha) * overlay[attention_mask, 0] + highlight_alpha * red_component
                             overlay[attention_mask, 1] = (1 - highlight_alpha) * overlay[attention_mask, 1] + highlight_alpha * green_component  
                             overlay[attention_mask, 2] = (1 - highlight_alpha) * overlay[attention_mask, 2] + highlight_alpha * blue_component
