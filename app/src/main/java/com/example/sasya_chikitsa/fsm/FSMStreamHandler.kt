@@ -22,6 +22,7 @@ class FSMStreamHandler {
         fun onStateUpdate(stateUpdate: FSMStateUpdate)
         fun onMessage(message: String)
         fun onFollowUpItems(items: List<String>)
+        fun onAttentionOverlay(overlayData: AttentionOverlayData)
         fun onError(error: String)
         fun onStreamComplete()
     }
@@ -131,6 +132,16 @@ class FSMStreamHandler {
                     
                     "error" -> {
                         callback.onError(data)
+                    }
+                    
+                    "attention_overlay" -> {
+                        try {
+                            val overlayData = gson.fromJson(data, AttentionOverlayData::class.java)
+                            callback.onAttentionOverlay(overlayData)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing attention overlay data: ${e.message}")
+                            callback.onError("Failed to parse attention overlay: ${e.message}")
+                        }
                     }
                     
                     "complete" -> {

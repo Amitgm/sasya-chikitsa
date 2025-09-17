@@ -29,6 +29,7 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.sasya_chikitsa.config.ServerConfig
+import com.example.sasya_chikitsa.fsm.AttentionOverlayData
 import com.example.sasya_chikitsa.fsm.ChatAdapter
 import com.example.sasya_chikitsa.fsm.ChatMessage
 import com.example.sasya_chikitsa.fsm.FSMRetrofitClient
@@ -467,6 +468,30 @@ class MainActivityFSM : ComponentActivity(), FSMStreamHandler.StreamCallback {
                 
                 // Hide the separate follow-up container since we're using in-card buttons
                 followUpContainer.visibility = View.GONE
+            }
+        }
+    }
+    
+    override fun onAttentionOverlay(overlayData: AttentionOverlayData) {
+        Log.d(TAG, "🎯 Received attention overlay from ${overlayData.sourceNode}: disease=${overlayData.diseaseName}, confidence=${overlayData.confidence}")
+        runOnUiThread {
+            if (currentSessionState.messages.isNotEmpty() && 
+                !currentSessionState.messages.last().isUser && 
+                overlayData.attentionOverlay != null) {
+                
+                // Add attention overlay to the last assistant message
+                val lastMessage = currentSessionState.messages.last()
+                val updatedMessage = lastMessage.copy(
+                    attentionOverlayBase64 = overlayData.attentionOverlay,
+                    diseaseName = overlayData.diseaseName,
+                    confidence = overlayData.confidence
+                )
+                
+                // Update message and notify adapter
+                currentSessionState.messages[currentSessionState.messages.size - 1] = updatedMessage
+                chatAdapter.updateLastMessageWithOverlay(updatedMessage)
+                
+                Log.d(TAG, "✅ Added attention overlay to last message")
             }
         }
     }

@@ -94,7 +94,7 @@ class ClassifyingNode(BaseNode):
         state["classification_results"] = result
         state["disease_name"] = result.get("disease_name")
         state["confidence"] = result.get("confidence")
-        state["attention_overlay"] = result.get("attention_overlay")
+        # NOTE: attention_overlay is NOT stored in state - only streamed once for transparency
         
         # Format classification response professionally
         confidence_pct = (result.get("confidence", 0) * 100)

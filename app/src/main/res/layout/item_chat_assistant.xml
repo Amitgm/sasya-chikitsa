@@ -83,6 +83,45 @@
                     android:lineSpacingExtra="2dp"
                     android:maxWidth="320dp" />
 
+                <!-- Attention Overlay Container -->
+                <LinearLayout
+                    android:id="@+id/attentionOverlayContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🎯 AI Diagnostic Visualization"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="#2D3748"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:id="@+id/overlayDescription"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Original image vs AI attention heatmap"
+                        android:textSize="12sp"
+                        android:textColor="#666666"
+                        android:layout_marginBottom="8dp" />
+
+                    <!-- Attention Overlay Image -->
+                    <ImageView
+                        android:id="@+id/attentionOverlayImage"
+                        android:layout_width="match_parent"
+                        android:layout_height="200dp"
+                        android:background="@drawable/modern_card_background"
+                        android:scaleType="centerCrop"
+                        android:layout_marginBottom="8dp"
+                        android:contentDescription="AI attention overlay showing diagnostic focus areas" />
+
+                </LinearLayout>
+
                 <!-- Feedback Buttons -->
                 <LinearLayout
                     android:id="@+id/feedbackContainer"

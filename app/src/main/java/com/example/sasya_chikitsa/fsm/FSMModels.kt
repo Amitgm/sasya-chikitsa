@@ -51,7 +51,10 @@ data class ChatMessage(
     val imageUri: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val followUpItems: List<String>? = null,
-    val state: String? = null
+    val state: String? = null,
+    val attentionOverlayBase64: String? = null,
+    val diseaseName: String? = null,
+    val confidence: Double? = null
 )
 
 // Follow-up item for UI
@@ -78,4 +81,12 @@ data class ServerEvent(
 // Assistant response data for dedicated assistant_response events
 data class AssistantResponseData(
     @SerializedName("assistant_response") val assistant_response: String? = null
+)
+
+// Attention overlay data for visualization
+data class AttentionOverlayData(
+    @SerializedName("attention_overlay") val attentionOverlay: String? = null,
+    @SerializedName("disease_name") val diseaseName: String? = null,
+    @SerializedName("confidence") val confidence: Double? = null,
+    @SerializedName("source_node") val sourceNode: String? = null
 )

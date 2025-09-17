@@ -238,7 +238,7 @@ class SessionManager:
                 seen_messages.add(message_key)
                 deduplicated_messages.append(message)
             else:
-                logger.info(f"🗑️ Removed duplicate message: {message.get('content', '')[:50]}...")
+                logger.debug(f"🗑️ Removed duplicate message: {message.get('content', '')[:50]}...")
         
         # Update state with deduplicated messages
         original_count = len(messages)
