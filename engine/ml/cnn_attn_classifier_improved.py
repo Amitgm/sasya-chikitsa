@@ -159,17 +159,17 @@ class CNNWithAttentionClassifier(Layer):
                         
                         # Create heatmap overlay
                         heatmap = cv2.applyColorMap(
-                            np.uint8(255 * normalized_attention), 
+                            np.uint8(255 * normalized_attention),
                             cv2.COLORMAP_VIRIDIS
                         )
                         heatmap_rgb = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
-                        
+
                         # Blend with original image
                         original_float = original_image_rgb.astype(np.float32) / 255.0
                         heatmap_float = heatmap_rgb.astype(np.float32) / 255.0
                         alpha = np.expand_dims(normalized_attention, axis=-1)
                         alpha = np.repeat(alpha, 3, axis=-1)
-                        
+
                         overlay = (1 - alpha) * original_float + alpha * heatmap_float
                         overlay = np.clip(overlay, 0, 1)
                         
@@ -347,17 +347,17 @@ class CNNWithAttentionClassifier(Layer):
                         
                         # Create heatmap overlay
                         heatmap = cv2.applyColorMap(
-                            np.uint8(255 * normalized_attention), 
+                            np.uint8(255 * normalized_attention),
                             cv2.COLORMAP_VIRIDIS
                         )
                         heatmap_rgb = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
-                        
+
                         # Blend with original image
                         original_float = original_image_rgb.astype(np.float32) / 255.0
                         heatmap_float = heatmap_rgb.astype(np.float32) / 255.0
                         alpha = np.expand_dims(normalized_attention, axis=-1)
                         alpha = np.repeat(alpha, 3, axis=-1)
-                        
+
                         overlay = (1 - alpha) * original_float + alpha * heatmap_float
                         overlay = np.clip(overlay, 0, 1)
                         

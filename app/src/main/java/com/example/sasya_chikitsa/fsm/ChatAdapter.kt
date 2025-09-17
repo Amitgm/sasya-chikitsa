@@ -1,10 +1,16 @@
 package com.example.sasya_chikitsa.fsm
 
+import android.app.Dialog
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.graphics.PointF
 import android.graphics.drawable.GradientDrawable
 import android.util.Base64
 import android.util.Log
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
@@ -257,11 +263,11 @@ class ChatAdapter(
             if (message.attentionOverlayBase64 != null) {
                 attentionOverlayContainer.visibility = View.VISIBLE
                 
-                // Update description with disease info
+                // Update description with disease info and clickable hint
                 val description = if (message.diseaseName != null && message.confidence != null) {
-                    "Detected: ${message.diseaseName} (${String.format("%.1f", message.confidence * 100)}% confidence)"
+                    "Detected: ${message.diseaseName} (${String.format("%.1f", message.confidence * 100)}% confidence) • Tap to zoom & inspect"
                 } else {
-                    "Original image vs AI attention heatmap"
+                    "AI attention heatmap with blue/yellow highlights • Tap to zoom & inspect"
                 }
                 overlayDescription.text = description
                 
@@ -270,6 +276,18 @@ class ChatAdapter(
                     val imageBytes = Base64.decode(message.attentionOverlayBase64, Base64.DEFAULT)
                     val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
                     attentionOverlayImage.setImageBitmap(bitmap)
+                    
+                    // Make the overlay clickable to open in full-screen modal
+                    attentionOverlayImage.setOnClickListener {
+                        showAttentionOverlayModal(bitmap, message.diseaseName, message.confidence)
+                    }
+                    
+                    // Add visual feedback for clickability
+                    attentionOverlayImage.background = ContextCompat.getDrawable(
+                        itemView.context, 
+                        android.R.drawable.list_selector_background
+                    )
+                    
                 } catch (e: Exception) {
                     Log.e("ChatAdapter", "Error decoding attention overlay image", e)
                     attentionOverlayContainer.visibility = View.GONE
@@ -277,6 +295,139 @@ class ChatAdapter(
             } else {
                 attentionOverlayContainer.visibility = View.GONE
             }
+        }
+        
+        private fun showAttentionOverlayModal(bitmap: android.graphics.Bitmap, diseaseName: String?, confidence: Double?) {
+            // Create custom dialog
+            val dialog = android.app.Dialog(itemView.context, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+            dialog.setContentView(R.layout.dialog_attention_overlay)
+            
+            // Set up dialog views
+            val imgOverlay = dialog.findViewById<ImageView>(R.id.imgAttentionOverlay)
+            val tvDiseaseInfo = dialog.findViewById<TextView>(R.id.tvDiseaseInfo)
+            val btnClose = dialog.findViewById<ImageButton>(R.id.btnClose)
+            val zoomInstructions = dialog.findViewById<TextView>(R.id.zoomInstructions)
+            
+            // Display the full-size overlay image
+            imgOverlay.setImageBitmap(bitmap)
+            
+            // Update disease information
+            val diseaseText = if (diseaseName != null && confidence != null) {
+                "Detected: $diseaseName (${String.format("%.1f", confidence * 100)}% confidence)"
+            } else {
+                "AI Attention Analysis - Diagnostic Focus Areas"
+            }
+            tvDiseaseInfo.text = diseaseText
+            
+            // Set up zoom functionality
+            setupImageZoom(imgOverlay, zoomInstructions)
+            
+            // Close button functionality
+            btnClose.setOnClickListener {
+                dialog.dismiss()
+            }
+            
+            // Allow tapping outside to close
+            dialog.setCancelable(true)
+            dialog.setCanceledOnTouchOutside(true)
+            
+            // Show the dialog
+            dialog.show()
+            
+            Log.d("ChatAdapter", "🎯 Opened zoomable attention overlay modal for detailed inspection")
+        }
+        
+        private fun setupImageZoom(imageView: ImageView, instructionsView: TextView) {
+            val matrix = Matrix()
+            var scale = 1f
+            var lastScaleFactor = 0f
+            
+            // Where the user started to drag
+            var startX = 0f
+            var startY = 0f
+            
+            // How much to translate with the drag
+            var dx = 0f
+            var dy = 0f
+            var prevDx = 0f
+            var prevDy = 0f
+            
+            val scaleDetector = ScaleGestureDetector(itemView.context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                    lastScaleFactor = 0f
+                    return true
+                }
+                
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    val scaleFactor = detector.scaleFactor
+                    
+                    if (lastScaleFactor == 0f || (Math.signum(scaleFactor) == Math.signum(lastScaleFactor))) {
+                        scale *= scaleFactor
+                        scale = Math.max(0.1f, Math.min(scale, 5.0f))
+                        lastScaleFactor = scaleFactor
+                    }
+                    return true
+                }
+            })
+            
+            val gestureDetector = GestureDetector(itemView.context, object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    // Double tap to reset zoom
+                    scale = 1f
+                    dx = 0f
+                    dy = 0f
+                    prevDx = 0f
+                    prevDy = 0f
+                    return true
+                }
+            })
+            
+            imageView.setOnTouchListener { _, event ->
+                scaleDetector.onTouchEvent(event)
+                gestureDetector.onTouchEvent(event)
+                
+                when (event.action and MotionEvent.ACTION_MASK) {
+                    MotionEvent.ACTION_DOWN -> {
+                        startX = event.x - prevDx
+                        startY = event.y - prevDy
+                        // Show zoom instructions
+                        instructionsView.visibility = View.VISIBLE
+                        instructionsView.animate().alpha(1f).setDuration(200).start()
+                    }
+                    
+                    MotionEvent.ACTION_MOVE -> {
+                        if (!scaleDetector.isInProgress) {
+                            dx = event.x - startX
+                            dy = event.y - startY
+                        }
+                    }
+                    
+                    MotionEvent.ACTION_UP -> {
+                        prevDx = dx
+                        prevDy = dy
+                        // Hide zoom instructions after a delay
+                        instructionsView.animate().alpha(0f).setDuration(200).withEndAction {
+                            instructionsView.visibility = View.GONE
+                        }.startDelay = 2000
+                    }
+                    
+                    MotionEvent.ACTION_POINTER_UP -> {
+                        prevDx = dx
+                        prevDy = dy
+                    }
+                }
+                
+                // Apply transformations
+                matrix.reset()
+                matrix.postScale(scale, scale)
+                matrix.postTranslate(dx, dy)
+                imageView.imageMatrix = matrix
+                imageView.invalidate()
+                
+                true
+            }
+            
+            Log.d("ChatAdapter", "🔍 Zoom functionality initialized for attention overlay")
         }
     }
 }
