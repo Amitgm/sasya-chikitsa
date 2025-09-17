@@ -477,18 +477,23 @@ class DynamicPlanningWorkflow:
                             "data": filtered_delta
                         }
                 
-                # GENERIC: Stream attention overlay if any node produces one
-                if "attention_overlay" in actual_state_data and actual_state_data.get("attention_overlay"):
-                    attention_overlay = actual_state_data["attention_overlay"]
-                    current_node = actual_state_data.get("current_node", "")
+                # GENERIC: Stream attention overlay directly from classification results (never from persisted state)
+                current_node = actual_state_data.get("current_node", "")
+                classification_results = actual_state_data.get("classification_results")
+                
+                if (current_node == "classifying" and 
+                    classification_results and 
+                    classification_results.get("attention_overlay")):
                     
-                    # Prevent duplicate streaming using overlay content hash
-                    overlay_hash = hash(attention_overlay[:100] + current_node)  # Hash first 100 chars + node
+                    attention_overlay = classification_results["attention_overlay"]
+                    
+                    # Prevent duplicate streaming using overlay content hash + session + node
+                    overlay_hash = hash(attention_overlay[:100] + session_id + current_node)
                     overlay_hash_key = f"_overlay_hashes_{session_id}"
                     streamed_overlays = getattr(self, overlay_hash_key, set())
                     
                     if overlay_hash not in streamed_overlays:
-                        # Stream attention overlay as separate event (not saved in state persistence)
+                        # Stream attention overlay as separate event (temporary, not persisted)
                         yield {
                             "type": "attention_overlay",
                             "session_id": session_id,
@@ -500,13 +505,13 @@ class DynamicPlanningWorkflow:
                             }
                         }
                         
-                        # Track streamed overlay to prevent duplicates
+                        # Track streamed overlay to prevent duplicates within session
                         streamed_overlays.add(overlay_hash)
                         setattr(self, overlay_hash_key, streamed_overlays)
                         
-                        logger.info(f"🎯 Streamed attention overlay from node '{current_node}' for session {session_id}")
+                        logger.info(f"🎯 Streamed NEW attention overlay from classification for session {session_id}")
                     else:
-                        logger.debug(f"🔄 Skipped duplicate attention overlay from node '{current_node}' for session {session_id}")
+                        logger.debug(f"🔄 Skipped duplicate attention overlay for session {session_id}")
                 
                 # CRITICAL FIX: Only stream NEW assistant_response, not old accumulated data
                 previous_node = actual_state_data.get("previous_node", "")
