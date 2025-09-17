@@ -157,10 +157,11 @@ class CNNWithAttentionClassifier(Layer):
                         yield "Creating attention heatmap overlay...\n"
                         time.sleep(0.3)
                         
-                        # Create heatmap overlay
+                        # Create heatmap overlay with red/yellow colors for better contrast against green leaves
+                        # COLORMAP_HOT provides black->red->yellow->white progression, ideal for plant diagnosis
                         heatmap = cv2.applyColorMap(
                             np.uint8(255 * normalized_attention), 
-                            cv2.COLORMAP_VIRIDIS
+                            cv2.COLORMAP_HOT
                         )
                         heatmap_rgb = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
                         
@@ -345,10 +346,11 @@ class CNNWithAttentionClassifier(Layer):
                         else:
                             normalized_attention = np.zeros_like(resized_attention)
                         
-                        # Create heatmap overlay
+                        # Create heatmap overlay with red/yellow colors for better contrast against green leaves
+                        # COLORMAP_HOT provides black->red->yellow->white progression, ideal for plant diagnosis
                         heatmap = cv2.applyColorMap(
                             np.uint8(255 * normalized_attention), 
-                            cv2.COLORMAP_VIRIDIS
+                            cv2.COLORMAP_HOT
                         )
                         heatmap_rgb = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
                         
