@@ -442,18 +442,21 @@ class DynamicPlanningWorkflow:
                     if isinstance(state_data, dict):
                         actual_state_data.update(state_data)
                 
-                # GENERIC: Stream attention overlay directly from classification results (never from persisted state)
-                current_node = actual_state_data.get("current_node", "")
-                classification_results = actual_state_data.get("classification_results")
+                # GENERIC: Stream attention overlay from any node that produces one (temporary data only)
+                # Check for temporary attention overlay in chunk data (not persisted state)
+                temp_attention_overlay = None
+                source_node = actual_state_data.get("current_node", "unknown")
                 
-                if (current_node == "classifying" and 
-                    classification_results and 
-                    classification_results.get("attention_overlay")):
-                    
-                    attention_overlay = classification_results["attention_overlay"]
-                    
+                # Look for attention overlay in any results structure from this workflow step
+                for key, value in actual_state_data.items():
+                    if isinstance(value, dict) and value.get("attention_overlay"):
+                        temp_attention_overlay = value["attention_overlay"]
+                        logger.debug(f"Found attention overlay in {key} from node {source_node}")
+                        break
+                
+                if temp_attention_overlay:
                     # Prevent duplicate streaming using overlay content hash + session + node
-                    overlay_hash = hash(attention_overlay[:100] + session_id + current_node)
+                    overlay_hash = hash(temp_attention_overlay[:100] + session_id + source_node)
                     overlay_hash_key = f"_overlay_hashes_{session_id}"
                     streamed_overlays = getattr(self, overlay_hash_key, set())
                     
@@ -463,10 +466,10 @@ class DynamicPlanningWorkflow:
                             "type": "attention_overlay",
                             "session_id": session_id,
                             "data": {
-                                "attention_overlay": attention_overlay,
+                                "attention_overlay": temp_attention_overlay,
                                 "disease_name": actual_state_data.get("disease_name"),
                                 "confidence": actual_state_data.get("confidence"),
-                                "source_node": current_node
+                                "source_node": source_node
                             }
                         }
                         
@@ -474,9 +477,9 @@ class DynamicPlanningWorkflow:
                         streamed_overlays.add(overlay_hash)
                         setattr(self, overlay_hash_key, streamed_overlays)
                         
-                        logger.info(f"🎯 Streamed NEW attention overlay from classification for session {session_id}")
+                        logger.info(f"🎯 Streamed attention overlay from node '{source_node}' for session {session_id}")
                     else:
-                        logger.debug(f"🔄 Skipped duplicate attention overlay for session {session_id}")
+                        logger.debug(f"🔄 Skipped duplicate attention overlay from node '{source_node}' for session {session_id}")
                 
                 # Only track state transitions for logging purposes
                 if current_node and current_node != last_node:
