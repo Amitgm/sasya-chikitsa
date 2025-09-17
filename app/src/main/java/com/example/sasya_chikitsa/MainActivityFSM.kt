@@ -29,6 +29,7 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.sasya_chikitsa.config.ServerConfig
+import com.example.sasya_chikitsa.fsm.AttentionOverlayData
 import com.example.sasya_chikitsa.fsm.ChatAdapter
 import com.example.sasya_chikitsa.fsm.ChatMessage
 import com.example.sasya_chikitsa.fsm.FSMRetrofitClient
